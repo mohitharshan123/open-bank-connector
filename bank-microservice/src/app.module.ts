@@ -7,6 +7,8 @@ import { BankService } from './bank.service';
 import bankConfig from './config/bank.config';
 import redisConfig from './config/redis.config';
 import { RedisModule } from './modules/redis.module';
+import { MongoTokenRepository } from './repositories/mongo-token.repository';
+import { TokenRepository } from './repositories/token.repository.interface';
 import { Token, TokenSchema } from './schemas/token.schema';
 import { TokenService } from './services/token.service';
 
@@ -30,6 +32,13 @@ import { TokenService } from './services/token.service';
     MongooseModule.forFeature([{ name: Token.name, schema: TokenSchema }]),
   ],
   controllers: [BankController],
-  providers: [BankService, TokenService],
+  providers: [
+    BankService,
+    TokenService,
+    {
+      provide: TokenRepository,
+      useClass: MongoTokenRepository,
+    },
+  ],
 })
 export class AppModule { }

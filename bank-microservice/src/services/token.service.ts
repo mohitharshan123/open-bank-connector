@@ -1,12 +1,12 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
 import Redis from 'ioredis';
-import { Model } from 'mongoose';
 import { AirwallexAuthResponse } from 'open-bank-sdk';
 import { RedisConfig } from '../config/redis.config';
 import { REDIS_CLIENT } from '../modules/redis.module';
-import { Token, TokenDocument } from '../schemas/token.schema';
+import type { ITokenRepository } from '../repositories/token.repository.interface';
+import { TokenRepository } from '../repositories/token.repository.interface';
+import type { TokenDocument } from '../schemas/token.schema';
 import { ProviderType } from '../types/provider.enum';
 
 interface TokenData {
@@ -23,7 +23,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
 
     constructor(
         @Inject(REDIS_CLIENT) private readonly redis: Redis,
-        @InjectModel(Token.name) private tokenModel: Model<TokenDocument>,
+        @Inject(TokenRepository) private readonly tokenRepository: ITokenRepository,
         private readonly configService: ConfigService,
     ) {
         const redisConfig = this.configService.get<RedisConfig>('redis');
@@ -88,13 +88,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
             } as TokenDocument;
         }
 
-        return this.tokenModel
-            .findOne({
-                provider,
-                isActive: true,
-            })
-            .sort({ createdAt: -1 })
-            .exec();
+        return this.tokenRepository.findActiveByProvider(provider);
     }
 
     private isTokenValid(expiresAt: Date | number): boolean {
@@ -176,15 +170,13 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
 
             await this.setTokenInRedis(redisKey, tokenData, expiresIn + 60);
 
-            const tokenDoc = new this.tokenModel({
+            await this.tokenRepository.create({
                 provider,
                 token,
                 expiresAt,
                 isActive: true,
                 metadata: this.getProviderMetadata(provider, authResponse),
             });
-
-            await tokenDoc.save();
 
             this.logger.log(
                 `Successfully refreshed token for ${provider} (expires at ${expiresAt.toISOString()}) - stored in Redis and MongoDB`,
@@ -201,14 +193,11 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
     }
 
     async deactivateTokens(provider: ProviderType): Promise<void> {
-        const result = await this.tokenModel.updateMany(
-            { provider, isActive: true },
-            { isActive: false },
-        );
+        const modifiedCount = await this.tokenRepository.deactivateByProvider(provider);
 
-        if (result.modifiedCount > 0) {
+        if (modifiedCount > 0) {
             this.logger.debug(
-                `Deactivated ${result.modifiedCount} token(s) for ${provider}`,
+                `Deactivated ${modifiedCount} token(s) for ${provider}`,
             );
         }
     }
@@ -230,15 +219,13 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         };
         await this.setTokenInRedis(redisKey, tokenData, expiresIn + 60);
 
-        const tokenDoc = new this.tokenModel({
+        return this.tokenRepository.create({
             provider,
             token,
             expiresAt,
             isActive: true,
             metadata: this.getProviderMetadataForManualStorage(provider),
         });
-
-        return tokenDoc.save();
     }
 
     async getTokenInfo(provider: ProviderType): Promise<{
@@ -257,10 +244,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
             };
         }
 
-        const token = await this.tokenModel
-            .findOne({ provider, isActive: true })
-            .sort({ createdAt: -1 })
-            .exec();
+        const token = await this.tokenRepository.findActiveByProvider(provider);
 
         if (!token) {
             return {
@@ -280,8 +264,8 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         const redisKey = this.getRedisKey(provider);
         await this.redis.del(redisKey);
 
-        const result = await this.tokenModel.deleteMany({ provider }).exec();
-        this.logger.log(`Deleted token(s) for ${provider} from Redis and MongoDB (${result.deletedCount} MongoDB records)`);
+        const deletedCount = await this.tokenRepository.deleteByProvider(provider);
+        this.logger.log(`Deleted token(s) for ${provider} from Redis and MongoDB (${deletedCount} MongoDB records)`);
     }
 
     private getProviderMetadata(
