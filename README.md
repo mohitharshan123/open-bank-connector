@@ -198,7 +198,6 @@ const client = ClientProxyFactory.create({
 
 **StandardBalance:**
 ```typescript
-
 {
   available: number;
   current: number;
@@ -206,6 +205,234 @@ const client = ClientProxyFactory.create({
   provider: string;
 }
 ```
+
+## Extensibility: Adding New Providers
+
+The system is designed for easy extensibility. To add a new provider (e.g., Basiq), you only need to update the SDK. The microservice, API gateway, and frontend remain unchanged.
+
+### Example: Adding Basiq Provider
+
+#### Step 1: Create Provider Types (`open-bank-sdk/src/types/basiq.ts`)
+
+```typescript
+export interface BasiqConfig {
+    apiKey: string;
+    baseUrl?: string;
+}
+
+export interface BasiqAccount {
+    id: string;
+    accountName: string;
+    accountNumber: string;
+    balance: number;
+    currency: string;
+    type: string;
+}
+
+export interface BasiqBalance {
+    available: number;
+    current: number;
+    currency: string;
+}
+
+export interface BasiqAuthResponse {
+    access_token: string;
+    token_type: string;
+    expires_in: number;
+}
+```
+
+#### Step 2: Create Transformer (`open-bank-sdk/src/transformers/basiq.transformer.ts`)
+
+```typescript
+import { BaseTransformer } from './base.transformer';
+import { StandardAccount, StandardBalance } from '../types/common';
+import { BasiqAccount, BasiqBalance } from '../types/basiq';
+
+export class BasiqTransformer extends BaseTransformer<BasiqAccount, BasiqBalance> {
+    constructor() {
+        super('basiq');
+    }
+
+    transformAccount(account: BasiqAccount): StandardAccount {
+        return {
+            id: account.id,
+            accountNumber: account.accountNumber,
+            accountName: account.accountName,
+            balance: account.balance,
+            currency: account.currency,
+            type: account.type,
+            provider: this.providerName,
+        };
+    }
+
+    transformBalances(balances: BasiqBalance[]): StandardBalance[] {
+        return balances.map(balance => ({
+            available: balance.available,
+            current: balance.current,
+            currency: balance.currency,
+            provider: this.providerName,
+        }));
+    }
+}
+```
+
+#### Step 3: Create Provider (`open-bank-sdk/src/providers/basiq.provider.ts`)
+
+```typescript
+import { BaseProvider } from './base.provider';
+import { IHttpClient } from '../interfaces/https-client.interface';
+import { ILogger } from '../interfaces/logger.interface';
+import { BasiqTransformer } from '../transformers/basiq.transformer';
+import { BasiqConfig, BasiqAccount, BasiqBalance, BasiqAuthResponse } from '../types/basiq';
+import { StandardAccount, StandardBalance } from '../types/common';
+
+export class BasiqProvider extends BaseProvider {
+    private transformer: BasiqTransformer;
+    private baseURL: string;
+    private logger: ILogger;
+
+    constructor(httpClient: IHttpClient, config: BasiqConfig, logger?: ILogger) {
+        super(httpClient, config);
+        this.baseURL = config.baseUrl || 'https://api.basiq.io';
+        this.transformer = new BasiqTransformer();
+        this.logger = logger || new ConsoleLogger();
+    }
+
+    getProviderName(): string {
+        return 'basiq';
+    }
+
+    async authenticate(): Promise<BasiqAuthResponse> {
+        const response = await this.httpClient.post<BasiqAuthResponse>(
+            '/token',
+            undefined,
+            {
+                baseURL: this.baseURL,
+                headers: {
+                    'Authorization': `Basic ${Buffer.from(this.config.apiKey + ':').toString('base64')}`,
+                },
+            }
+        );
+        return response.data;
+    }
+
+    async getAccount(): Promise<StandardAccount> {
+        const account = await this.request<BasiqAccount>('GET', '/accounts');
+        return this.transformer.transformAccount(account);
+    }
+
+    async getBalances(): Promise<StandardBalance[]> {
+        const balances = await this.request<BasiqBalance[]>('GET', '/balances');
+        return this.transformer.transformBalances(balances);
+    }
+}
+```
+
+#### Step 4: Register in SDK (`open-bank-sdk/src/sdk.ts`)
+
+```typescript
+import { BasiqProvider } from './providers/basiq.provider';
+import { BasiqConfig } from './types/basiq';
+
+export type ProviderConfig = AirwallexConfig | BasiqConfig;
+
+useBasiq(httpClient: IHttpClient, config: BasiqConfig, logger?: ILogger): ProviderInstance {
+    const provider = new BasiqProvider(httpClient, config, logger);
+    this.registerProvider(Providers.BASIQ, provider);
+    return new ProviderInstance(provider, logger);
+}
+```
+
+#### Step 5: Update Microservice (Minimal Changes)
+
+**Add to enum** (`bank-microservice/src/types/provider.enum.ts`):
+```typescript
+export enum ProviderType {
+    AIRWALLEX = 'airwallex',
+    BASIQ = 'basiq',
+}
+```
+
+**Add config** (`bank-microservice/src/config/bank.config.ts`):
+```typescript
+export interface BankConfig {
+    basiq: {
+        apiKey: string;
+        baseUrl?: string;
+    };
+}
+```
+
+**Add header injection config** (`bank-microservice/src/utils/token-injecting-http-client.ts`):
+```typescript
+private getProviderConfig(providerType: ProviderType): TokenInjectionConfig {
+    const configs: Map<ProviderType, TokenInjectionConfig> = new Map([
+        [
+            ProviderType.AIRWALLEX,
+            {
+                supportsRefresh: true,
+                expirationBufferMs: 5 * 60 * 1000,
+                injectHeader: (config, token) => {
+                    config.headers = config.headers || {};
+                    config.headers['Authorization'] = `Bearer ${token}`;
+                },
+            },
+        ],
+        [
+            ProviderType.BASIQ,
+            {
+                supportsRefresh: true,
+                expirationBufferMs: 5 * 60 * 1000,
+                injectHeader: (config, token) => {
+                    config.headers = config.headers || {};
+                    config.headers['Authorization'] = `Bearer ${token}`;
+                },
+            },
+        ],
+    ]);
+    // ... rest of method
+}
+```
+
+**Add refresh callback** (`bank-microservice/src/bank.service.ts`):
+```typescript
+private createHttpClient(providerType: ProviderType): IHttpClient {
+    const baseClient = new NestJsHttpAdapter(this.httpService);
+    return new TokenInjectingHttpClient(
+        baseClient,
+        providerType,
+        this.tokenService,
+        providerType === ProviderType.AIRWALLEX
+            ? () => this.refreshAuthToken(ProviderType.AIRWALLEX)
+            : providerType === ProviderType.BASIQ
+            ? () => this.refreshAuthToken(ProviderType.BASIQ)
+            : undefined,
+    );
+}
+```
+
+**Add initialization** (`bank-microservice/src/bank.service.ts`):
+```typescript
+private async initializeBasiq(): Promise<void> {
+    const config = this.configService.get<BankConfig['basiq']>('bank.basiq');
+    const httpClient = this.createHttpClient(ProviderType.BASIQ);
+    const provider = this.sdk.useBasiq(httpClient, config, this.logger);
+    this.providers.set(ProviderType.BASIQ, provider);
+}
+```
+
+**Note**: Header injection configuration allows each provider to specify how tokens are injected into requests. Most providers use `Authorization: Bearer`, but some may require different header formats or additional headers.
+
+### Key Benefits
+
+- **No API Changes**: All endpoints remain the same (`/authenticate`, `/account`, `/balances`)
+- **No Gateway Changes**: Message patterns unchanged
+- **No Frontend Changes**: Same request format
+- **Standard Format**: All providers return `StandardAccount` and `StandardBalance[]`
+- **Isolated Logic**: Provider-specific code contained in SDK
+
+The microservice automatically handles token management, caching, and refresh for any provider through the same infrastructure.
 
 ## See Also
 
