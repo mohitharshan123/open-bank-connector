@@ -198,6 +198,7 @@ const client = ClientProxyFactory.create({
 
 **StandardBalance:**
 ```typescript
+
 {
   available: number;
   current: number;
@@ -209,4 +210,8 @@ const client = ClientProxyFactory.create({
 ## See Also
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Detailed architecture documentation
+
+
+https://github.com/user-attachments/assets/b3db140c-74d4-4d47-a229-2541ba98bb3d
+
 
