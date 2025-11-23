@@ -208,7 +208,13 @@ const client = ClientProxyFactory.create({
 
 ## Extensibility: Adding New Providers
 
-The system is designed for easy extensibility. To add a new provider (e.g., Basiq), you only need to update the SDK. The microservice, API gateway, and frontend remain unchanged.
+The system is designed for easy extensibility using a **config-driven approach**. To add a new provider (e.g., Basiq), you only need to:
+1. Define provider types and transformer
+2. Create a config file with endpoints, headers, and transformer
+3. Create a simple provider class extending `ConfigurableProvider`
+4. Register in SDK and update microservice
+
+The microservice, API gateway, and frontend remain unchanged. The config-driven approach eliminates boilerplate code - authentication, account fetching, and balance retrieval are handled automatically by `ConfigurableProvider`.
 
 ### Example: Adding Basiq Provider
 
@@ -277,59 +283,70 @@ export class BasiqTransformer extends BaseTransformer<BasiqAccount, BasiqBalance
 }
 ```
 
-#### Step 3: Create Provider (`open-bank-sdk/src/providers/basiq.provider.ts`)
+#### Step 3: Create Provider Config (`open-bank-sdk/src/config/basiq.config.ts`)
+
+The SDK uses a **config-driven approach** where endpoints, headers, and transformers are defined in a config file. This makes adding providers much simpler:
 
 ```typescript
-import { BaseProvider } from './base.provider';
+import { PROVIDER_BASE_URLS } from '../constants';
+import { BasiqTransformer } from '../transformers/basiq.transformer';
+import { BasiqAccount, BasiqBalance, BasiqConfig, BasiqAuthResponse } from '../types/basiq';
+import { ProviderEndpointConfig } from '../types/provider-config';
+
+export const createBasiqConfig = (config: BasiqConfig): ProviderEndpointConfig<
+    BasiqAccount,
+    BasiqBalance,
+    BasiqConfig,
+    BasiqAuthResponse
+> => ({
+    providerName: 'basiq',
+    baseUrl: config.baseUrl || PROVIDER_BASE_URLS.BASIQ,
+    endpoints: {
+        authenticate: '/token',
+        getAccount: '/accounts',
+        getBalances: '/balances',
+    },
+    transformer: new BasiqTransformer(),
+    buildAuthHeaders: (config: BasiqConfig) => ({
+        'Authorization': `Basic ${Buffer.from(config.apiKey + ':').toString('base64')}`,
+    }),
+    parseAuthResponse: (response: BasiqAuthResponse) => ({
+        accessToken: response.access_token,
+        expiresIn: response.expires_in,
+    }),
+});
+```
+
+#### Step 4: Create Provider (`open-bank-sdk/src/providers/basiq.provider.ts`)
+
+With the config-driven approach, the provider class is now just a thin wrapper:
+
+```typescript
 import { IHttpClient } from '../interfaces/https-client.interface';
 import { ILogger } from '../interfaces/logger.interface';
-import { BasiqTransformer } from '../transformers/basiq.transformer';
-import { BasiqConfig, BasiqAccount, BasiqBalance, BasiqAuthResponse } from '../types/basiq';
-import { StandardAccount, StandardBalance } from '../types/common';
+import { BasiqAuthResponse, BasiqConfig } from '../types/basiq';
+import { ConfigurableProvider } from './configurable.provider';
+import { createBasiqConfig } from '../config/basiq.config';
 
-export class BasiqProvider extends BaseProvider {
-    private transformer: BasiqTransformer;
-    private baseURL: string;
-    private logger: ILogger;
-
-    constructor(httpClient: IHttpClient, config: BasiqConfig, logger?: ILogger) {
-        super(httpClient, config);
-        this.baseURL = config.baseUrl || 'https://api.basiq.io';
-        this.transformer = new BasiqTransformer();
-        this.logger = logger || new ConsoleLogger();
-    }
-
-    getProviderName(): string {
-        return 'basiq';
-    }
-
-    async authenticate(): Promise<BasiqAuthResponse> {
-        const response = await this.httpClient.post<BasiqAuthResponse>(
-            '/token',
-            undefined,
-            {
-                baseURL: this.baseURL,
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(this.config.apiKey + ':').toString('base64')}`,
-                },
-            }
-        );
-        return response.data;
-    }
-
-    async getAccount(): Promise<StandardAccount> {
-        const account = await this.request<BasiqAccount>('GET', '/accounts');
-        return this.transformer.transformAccount(account);
-    }
-
-    async getBalances(): Promise<StandardBalance[]> {
-        const balances = await this.request<BasiqBalance[]>('GET', '/balances');
-        return this.transformer.transformBalances(balances);
+export class BasiqProvider extends ConfigurableProvider<
+    any,
+    any,
+    BasiqConfig,
+    BasiqAuthResponse
+> {
+    constructor(httpClient: IHttpClient, config: BasiqConfig, logger?: ILogger, authHttpClient?: IHttpClient) {
+        const endpointConfig = createBasiqConfig(config);
+        super(httpClient, config, endpointConfig, logger, authHttpClient);
     }
 }
 ```
 
-#### Step 4: Register in SDK (`open-bank-sdk/src/sdk.ts`)
+**Key Benefits:**
+- **No boilerplate**: Authentication, account, and balance methods are handled automatically
+- **Easy to extend**: Just define endpoints, headers, and transformer in config
+- **Consistent**: All providers follow the same pattern
+
+#### Step 5: Register in SDK (`open-bank-sdk/src/sdk.ts`)
 
 ```typescript
 import { BasiqProvider } from './providers/basiq.provider';
@@ -344,7 +361,7 @@ useBasiq(httpClient: IHttpClient, config: BasiqConfig, logger?: ILogger): Provid
 }
 ```
 
-#### Step 5: Update Microservice (Minimal Changes)
+#### Step 6: Update Microservice (Minimal Changes)
 
 **Add to enum** (`bank-microservice/src/types/provider.enum.ts`):
 ```typescript

@@ -5,6 +5,7 @@
 
 export { AirwallexProvider } from './providers/airwallex.provider';
 export { BaseProvider, IProvider } from './providers/base.provider';
+export { ConfigurableProvider } from './providers/configurable.provider';
 export { ProviderInstance } from './providers/provider-instance';
 
 export { AirwallexTransformer } from './transformers/airwallex.transformer';
@@ -12,6 +13,7 @@ export { BaseTransformer, ITransformer } from './transformers/base.transformer';
 
 export * from './types/common';
 export * from './types/airwallex';
+export * from './types/provider-config';
 
 export * from './constants';
 export * from './interfaces/https-client.interface';
