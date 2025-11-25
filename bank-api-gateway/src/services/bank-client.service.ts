@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 
 export enum ProviderType {
     AIRWALLEX = 'airwallex',
+    BASIQ = 'basiq',
 }
 
 export interface GetAccountRequest {
@@ -16,6 +17,22 @@ export interface GetBalancesRequest {
 
 export interface AuthenticateRequest {
     provider: ProviderType;
+    userId?: string;
+    oauthCode?: string;
+}
+
+export interface CreateBasiqUserRequest {
+    email?: string;
+    mobile?: string;
+    firstName?: string;
+    lastName?: string;
+}
+
+export interface OAuthRedirectRequest {
+    provider: ProviderType;
+    userId?: string;
+    action?: string;
+    state?: string;
 }
 
 @Injectable()
@@ -89,6 +106,29 @@ export class BankClientService implements OnModuleInit, OnModuleDestroy {
         return firstValueFrom(
             this.client.send('bank.authenticate', {
                 provider: request.provider,
+                userId: request.userId,
+                oauthCode: request.oauthCode,
+            }),
+        );
+    }
+
+    async createBasiqUser(request: CreateBasiqUserRequest) {
+        await this.ensureConnected();
+        this.logger.debug(`Calling microservice: bank.createBasiqUser`, request);
+        return firstValueFrom(
+            this.client.send('bank.createBasiqUser', request),
+        );
+    }
+
+    async getOAuthRedirect(request: OAuthRedirectRequest) {
+        await this.ensureConnected();
+        this.logger.debug(`Calling microservice: bank.oauthRedirect`, request);
+        return firstValueFrom(
+            this.client.send('bank.oauthRedirect', {
+                provider: request.provider,
+                userId: request.userId,
+                action: request.action,
+                state: request.state,
             }),
         );
     }

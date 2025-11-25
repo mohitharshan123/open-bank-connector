@@ -1,6 +1,8 @@
+import { Injectable, Logger } from '@nestjs/common';
 import { IProvider } from './providers/base.provider';
 import { ProviderInstance } from './providers/provider-instance';
 import { AirwallexProvider } from './providers/airwallex.provider';
+import { BasiqProvider } from './providers/basiq.provider';
 import { AirwallexConfig } from './types/airwallex';
 import {
     StandardAccount,
@@ -8,7 +10,7 @@ import {
     ProviderName,
 } from './types/common';
 import { IHttpClient } from './interfaces/https-client.interface';
-import { ILogger } from './interfaces/logger.interface';
+import { BasiqConfig } from './types/basiq';
 
 /**
  * Configuration for initializing a provider
@@ -23,7 +25,9 @@ export enum Providers {
 /**
  * Main SDK class that provides a unified interface to interact with multiple banking providers
  */
+@Injectable()
 export class OpenBankSDK {
+    private readonly logger = new Logger(OpenBankSDK.name);
     private providers: Map<Providers, IProvider> = new Map();
 
     /**
@@ -37,10 +41,21 @@ export class OpenBankSDK {
      * Initialize Airwallex provider and return a provider-specific instance
      * Usage: const airwallex = sdk.useAirwallex(httpClient, config, logger, authHttpClient); await airwallex.getAccount();
      */
-    useAirwallex(httpClient: IHttpClient, config: AirwallexConfig, logger?: ILogger, authHttpClient?: IHttpClient): ProviderInstance {
+    useAirwallex(httpClient: IHttpClient, config: AirwallexConfig, logger?: Logger, authHttpClient?: IHttpClient): ProviderInstance {
         const provider = new AirwallexProvider(httpClient, config, logger, authHttpClient);
         this.registerProvider(Providers.AIRWALLEX, provider);
-        return new ProviderInstance(provider, logger);
+        return new ProviderInstance(provider, logger || this.logger);
+    }
+
+    /**
+     * Initialize Basiq provider and return a provider-specific instance
+     * Usage: const basiq = sdk.useBasiq(httpClient, config, logger, authHttpClient); await basiq.getAccount();
+     */
+    useBasiq(httpClient: IHttpClient, config: BasiqConfig, logger?: Logger, authHttpClient?: IHttpClient): ProviderInstance {
+        const providerLogger = logger || this.logger;
+        const provider = new BasiqProvider(httpClient, config, providerLogger, authHttpClient);
+        this.registerProvider(Providers.BASIQ, provider);
+        return new ProviderInstance(provider, providerLogger);
     }
 
     private getProvider(providerName: Providers): IProvider {

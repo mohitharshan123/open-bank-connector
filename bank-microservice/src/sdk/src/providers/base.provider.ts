@@ -1,22 +1,26 @@
+import { IHttpClient } from '../interfaces/https-client.interface';
 import {
     StandardAccount,
     StandardBalance,
 } from '../types/common';
-import { IHttpClient } from '../interfaces/https-client.interface';
 
 /**
  * Base interface that all providers must implement
  */
 export interface IProvider {
     /**
+     * Authenticate with the provider
+     */
+    authenticate(): Promise<any>;
+    /**
      * Get account details
      */
-    getAccount(): Promise<StandardAccount>;
+    getAccount(userId?: string): Promise<StandardAccount>;
 
     /**
      * Get account balances
      */
-    getBalances(): Promise<StandardBalance[]>;
+    getBalances(userId?: string): Promise<StandardBalance[]>;
 
     /**
      * Get the provider name
@@ -35,9 +39,9 @@ export abstract class BaseProvider implements IProvider {
         this.httpClient = httpClient;
         this.config = config;
     }
-
-    abstract getAccount(): Promise<StandardAccount>;
-    abstract getBalances(): Promise<StandardBalance[]>;
+    abstract authenticate(): Promise<any>;
+    abstract getAccount(userId?: string): Promise<StandardAccount>;
+    abstract getBalances(userId?: string): Promise<StandardBalance[]>;
     abstract getProviderName(): string;
 
     /**
@@ -46,12 +50,13 @@ export abstract class BaseProvider implements IProvider {
     protected async request<T>(
         method: string,
         url: string,
-        options?: { params?: Record<string, unknown>; data?: unknown; headers?: Record<string, string> }
+        options?: { baseURL?: string; params?: Record<string, unknown>; data?: unknown; headers?: Record<string, string> }
     ): Promise<T> {
         try {
             const response = await this.httpClient.request<T>({
                 method,
                 url,
+                baseURL: options?.baseURL,
                 params: options?.params,
                 data: options?.data,
                 headers: options?.headers || { 'Content-Type': 'application/json' },

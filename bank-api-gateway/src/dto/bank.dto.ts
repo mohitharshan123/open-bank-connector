@@ -1,7 +1,8 @@
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 export enum ProviderTypeDto {
     AIRWALLEX = 'airwallex',
+    BASIQ = 'basiq',
 }
 
 export class GetAccountDto {
@@ -17,5 +18,48 @@ export class GetBalancesDto {
 export class AuthenticateDto {
     @IsEnum(ProviderTypeDto)
     provider: ProviderTypeDto;
+    
+    @IsOptional()
+    @IsString()
+    userId?: string;
+
+    @IsOptional()
+    @IsString()
+    oauthCode?: string;
+}
+
+export class CreateBasiqUserDto {
+    @IsOptional()
+    @IsString()
+    email?: string;
+
+    @IsOptional()
+    @IsString()
+    mobile?: string;
+
+    @IsOptional()
+    @IsString()
+    firstName?: string;
+
+    @IsOptional()
+    @IsString()
+    lastName?: string;
+}
+
+export class OAuthRedirectDto {
+    @IsEnum(ProviderTypeDto)
+    provider: ProviderTypeDto;
+
+    @IsOptional()
+    @IsString()
+    userId?: string;
+
+    @IsOptional()
+    @IsString()
+    action?: string;
+
+    @IsOptional()
+    @IsString()
+    state?: string;
 }
 

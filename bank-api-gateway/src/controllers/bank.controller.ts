@@ -9,8 +9,10 @@ import {
 } from '@nestjs/common';
 import {
     AuthenticateDto,
+    CreateBasiqUserDto,
     GetAccountDto,
     GetBalancesDto,
+    OAuthRedirectDto,
 } from '../dto/bank.dto';
 import { BankClientService } from '../services/bank-client.service';
 
@@ -27,11 +29,32 @@ export class BankController {
             this.logger.log(`Authenticate request for provider: ${dto.provider}`);
             return await this.bankClient.authenticate({
                 provider: dto.provider as any,
+                userId: dto.userId,
+                oauthCode: dto.oauthCode,
             });
         } catch (error: any) {
             this.logger.error(`Authentication failed: ${error.message}`, error.stack);
             throw new BadRequestException(
                 error.message || 'Authentication failed',
+            );
+        }
+    }
+
+    @Post('oauth/redirect')
+    @HttpCode(HttpStatus.OK)
+    async getOAuthRedirect(@Body() dto: OAuthRedirectDto) {
+        try {
+            this.logger.log(`OAuth redirect request for provider: ${dto.provider}`);
+            return await this.bankClient.getOAuthRedirect({
+                provider: dto.provider as any,
+                userId: dto.userId,
+                action: dto.action,
+                state: dto.state,
+            });
+        } catch (error: any) {
+            this.logger.error(`OAuth redirect failed: ${error.message}`, error.stack);
+            throw new BadRequestException(
+                error.message || 'Failed to get OAuth redirect URL',
             );
         }
     }

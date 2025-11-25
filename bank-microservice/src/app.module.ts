@@ -7,10 +7,14 @@ import { BankService } from './bank.service';
 import bankConfig from './config/bank.config';
 import redisConfig from './config/redis.config';
 import { RedisModule } from './modules/redis.module';
+import { SdkModule } from './modules/sdk.module';
 import { MongoTokenRepository } from './repositories/mongo-token.repository';
 import { TokenRepository } from './repositories/token.repository.interface';
 import { Token, TokenSchema } from './schemas/token.schema';
 import { TokenService } from './services/token.service';
+import { AirwallexStrategy } from './strategies/airwallex.strategy';
+import { BasiqStrategy } from './strategies/basiq.strategy';
+import { ProviderStrategyFactory } from './strategies/provider-strategy.factory';
 
 @Module({
   imports: [
@@ -30,6 +34,7 @@ import { TokenService } from './services/token.service';
       inject: [ConfigService],
     }),
     MongooseModule.forFeature([{ name: Token.name, schema: TokenSchema }]),
+    SdkModule, 
   ],
   controllers: [BankController],
   providers: [
@@ -39,6 +44,9 @@ import { TokenService } from './services/token.service';
       provide: TokenRepository,
       useClass: MongoTokenRepository,
     },
+    BasiqStrategy,
+    AirwallexStrategy,
+    ProviderStrategyFactory,
   ],
 })
 export class AppModule { }

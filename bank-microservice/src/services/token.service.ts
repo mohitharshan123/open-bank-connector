@@ -1,18 +1,20 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { AirwallexAuthResponse } from 'open-bank-sdk';
+import { AirwallexAuthResponse } from '../sdk';
 import { RedisConfig } from '../config/redis.config';
 import { REDIS_CLIENT } from '../modules/redis.module';
 import type { ITokenRepository } from '../repositories/token.repository.interface';
 import { TokenRepository } from '../repositories/token.repository.interface';
-import type { TokenDocument } from '../schemas/token.schema';
+import type { TokenDocument, BasiqTokenDocument, AirwallexTokenDocument } from '../schemas/token.schema';
+import { isBasiqToken, isAirwallexToken } from '../schemas/token.schema';
 import { ProviderType } from '../types/provider.enum';
 
 interface TokenData {
     token: string;
     refreshToken?: string;
     expiresAt: number;
+    userId?: string;
 }
 
 @Injectable()
@@ -79,13 +81,20 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         const cachedToken = await this.getTokenFromRedis(redisKey);
 
         if (cachedToken) {
-            return {
-                provider,
-                token: cachedToken.token,
-                refreshToken: cachedToken.refreshToken,
-                expiresAt: new Date(cachedToken.expiresAt),
-                isActive: true,
-            } as TokenDocument;
+            if (provider === ProviderType.BASIQ && !cachedToken.userId) {
+                const mongoToken = await this.tokenRepository.findActiveByProvider(provider);
+                if (mongoToken && isBasiqToken(mongoToken)) {
+                    cachedToken.userId = mongoToken.userId;
+                    await this.setTokenInRedis(redisKey, cachedToken, Math.floor((cachedToken.expiresAt - Date.now()) / 1000));
+                }
+            }
+
+            const tokenDoc = await this.tokenRepository.findActiveByProvider(provider);
+            if (tokenDoc) {
+                return tokenDoc;
+            }
+
+            return null;
         }
 
         return this.tokenRepository.findActiveByProvider(provider);
@@ -163,9 +172,14 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
             }
 
             const redisKey = this.getRedisKey(provider);
+
+            const existingToken = await this.tokenRepository.findActiveByProvider(provider);
+            const userId = existingToken && isBasiqToken(existingToken) ? existingToken.userId : undefined;
+
             const tokenData: TokenData = {
                 token,
                 expiresAt: expiresAtMs,
+                userId,
             };
 
             await this.setTokenInRedis(redisKey, tokenData, expiresIn + 60);
@@ -173,6 +187,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
             await this.tokenRepository.create({
                 provider,
                 token,
+                userId,
                 expiresAt,
                 isActive: true,
                 metadata: this.getProviderMetadata(provider, authResponse),
@@ -206,6 +221,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         provider: ProviderType,
         token: string,
         expiresIn: number,
+        userId?: string,
     ): Promise<TokenDocument> {
         await this.deactivateTokens(provider);
 
@@ -216,12 +232,14 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         const tokenData: TokenData = {
             token,
             expiresAt: expiresAtMs,
+            userId, 
         };
         await this.setTokenInRedis(redisKey, tokenData, expiresIn + 60);
 
         return this.tokenRepository.create({
             provider,
             token,
+            userId,
             expiresAt,
             isActive: true,
             metadata: this.getProviderMetadataForManualStorage(provider),
@@ -298,7 +316,6 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
                     apiKey: string;
                     clientId: string;
                 }>('bank.airwallex');
-                //TODO: we should encrypt the api key and client id before storing them in the database
 
                 return {
                     clientId: airwallexConfig?.clientId,

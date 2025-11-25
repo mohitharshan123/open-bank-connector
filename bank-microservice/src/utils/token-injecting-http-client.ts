@@ -1,4 +1,4 @@
-import { HttpRequestConfig, HttpResponse, IHttpClient } from 'open-bank-sdk';
+import { HttpRequestConfig, HttpResponse, IHttpClient } from '../sdk';
 import { TokenService } from '../services/token.service';
 import { ProviderType } from '../types/provider.enum';
 
@@ -59,6 +59,18 @@ export class TokenInjectingHttpClient implements IHttpClient {
                     injectHeader: (config, token) => {
                         config.headers = config.headers || {};
                         config.headers['Authorization'] = `Bearer ${token}`;
+                    },
+                },
+            ],
+            [
+                ProviderType.BASIQ,
+                {
+                    supportsRefresh: true,
+                    expirationBufferMs: 5 * 60 * 1000,
+                    injectHeader: (config, token) => {
+                        config.headers = config.headers || {};
+                        config.headers['Authorization'] = `Bearer ${token}`;
+                        config.headers['basiq-version'] = '3.0';
                     },
                 },
             ],

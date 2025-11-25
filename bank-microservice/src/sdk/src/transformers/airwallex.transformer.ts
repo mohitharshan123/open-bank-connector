@@ -1,12 +1,12 @@
-import { BaseTransformer } from './base.transformer';
-import {
-    StandardAccount,
-    StandardBalance,
-} from '../types/common';
 import {
     AirwallexAccount,
     AirwallexAccountBalance,
 } from '../types/airwallex';
+import {
+    StandardAccount,
+    StandardBalance,
+} from '../types/common';
+import { BaseTransformer } from './base.transformer';
 
 /**
  * Transformer for Airwallex API responses to standard format

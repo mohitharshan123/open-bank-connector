@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { HttpRequestConfig, HttpResponse, IHttpClient } from 'open-bank-sdk';
+import { HttpRequestConfig, HttpResponse, IHttpClient } from '../sdk';
 import { firstValueFrom } from 'rxjs';
 import { Logger } from '@nestjs/common';
 
@@ -15,7 +15,9 @@ export class NestJsHttpAdapter implements IHttpClient {
             sanitized['x-api-key'] = '***masked***';
         }
         if (sanitized['Authorization']) {
-            sanitized['Authorization'] = sanitized['Authorization'].replace(/Bearer\s+.+/, 'Bearer ***masked***');
+            sanitized['Authorization'] = sanitized['Authorization']
+                .replace(/Bearer\s+.+/, 'Bearer ***masked***')
+                .replace(/Basic\s+.+/, 'Basic ***masked***');
         }
         return sanitized;
     }

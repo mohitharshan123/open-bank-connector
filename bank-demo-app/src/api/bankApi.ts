@@ -6,14 +6,17 @@ export type ProviderType = 'airwallex' | 'basiq';
 
 export interface AuthenticateRequest {
     provider: ProviderType;
+    userId?: string;
+    oauthCode?: string;
 }
 
 export interface AuthenticateResponse {
-    access_token: string;
-    token_type: string;
-    expires_in: number;
-    scope: string;
-    refresh_token: string;
+    access_token?: string;
+    token_type?: string;
+    expires_in?: number;
+    scope?: string;
+    refresh_token?: string;
+    redirectUrl?: string; // For providers that require OAuth redirect (e.g., Basiq)
 }
 
 export interface GetAccountRequest {
@@ -22,6 +25,20 @@ export interface GetAccountRequest {
 
 export interface GetBalancesRequest {
     provider: ProviderType;
+}
+
+export interface CreateBasiqUserRequest {
+    email?: string;
+    mobile?: string;
+    firstName?: string;
+    lastName?: string;
+}
+
+export interface OAuthRedirectRequest {
+    provider: ProviderType;
+    userId?: string;
+    action?: string;
+    state?: string;
 }
 
 export interface StandardAccount {
@@ -53,12 +70,14 @@ export const bankApi = {
         const response = await apiClient.post<AuthenticateResponse>('/authenticate', request);
         return response.data;
     },
-
+    getOAuthRedirect: async (request: OAuthRedirectRequest): Promise<{ redirectUrl: string }> => {
+        const response = await apiClient.post<{ redirectUrl: string }>('/oauth/redirect', request);
+        return response.data;
+    },
     getAccount: async (request: GetAccountRequest): Promise<StandardAccount> => {
         const response = await apiClient.post<StandardAccount>('/account', request);
         return response.data;
     },
-
     getBalances: async (request: GetBalancesRequest): Promise<StandardBalance[]> => {
         const response = await apiClient.post<StandardBalance[]>('/balances', request);
         return response.data;
