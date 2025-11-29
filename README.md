@@ -31,17 +31,24 @@ API Gateway (`bank-api-gateway`) receives HTTP request:
 - Sends TCP message to Microservice via `ClientProxy`
 
 **Message Patterns:**
-- `bank.authenticate`
-- `bank.getAccount`
-- `bank.getBalances`
+- `bank.authenticate` - Authenticate with provider (unprotected)
+- `bank.getAccount` - Get accounts (protected by TokenAuthGuard)
+- `bank.getBalances` - Get balances (protected by TokenAuthGuard)
+- `bank.getJobs` - Get jobs (protected by TokenAuthGuard)
+- `bank.oauthRedirect` - Get OAuth redirect URL (unprotected)
+- `bank.connectionStatus` - Check connection status (unprotected)
+- `bank.deleteTokens` - Delete stored tokens (unprotected)
 
 ### 3. Microservice Processing
 Microservice (`bank-microservice`) receives TCP message:
 - Listens on TCP port 3000
 - `@MessagePattern` handlers process messages
+- **Token Authentication Guard** (`TokenAuthGuard`) validates tokens for protected endpoints
+  - Checks token existence and validity
+  - Validates provider-specific requirements (e.g., Basiq requires userId)
+  - Throws `TokenNotFoundException` or `InvalidTokenException` if validation fails
 - Initializes provider SDK if needed
-- Retrieves/validates token from Redis/MongoDB
-- Calls SDK methods
+- Calls strategy methods which delegate to SDK features
 
 ### 4. SDK Integration
 SDK (`open-bank-sdk`) handles provider communication:
@@ -130,8 +137,40 @@ Frontend runs on `http://localhost:5173`
 
 ```
 open-bank-connector/
-├── open-bank-sdk/          # Provider SDK
+├── open-bank-sdk/          # Provider SDK (deprecated - SDK now in microservice)
 ├── bank-microservice/      # TCP Microservice
+│   └── src/
+│       ├── guards/         # Authentication guards
+│       │   ├── token-auth.guard.ts      # Token validation guard
+│       │   └── token-auth.decorator.ts  # Guard decorator
+│       ├── strategies/     # Provider strategies
+│       │   ├── base.strategy.ts         # Base strategy class
+│       │   ├── airwallex.strategy.ts    # Airwallex strategy
+│       │   ├── basiq.strategy.ts        # Basiq strategy
+│       │   ├── features/                # Feature-based modules
+│       │   │   ├── authentication/        # Authentication features
+│       │   │   ├── accounts/            # Account retrieval features
+│       │   │   ├── balances/            # Balance retrieval features
+│       │   │   └── jobs/                # Job management features
+│       │   └── oauth/                    # OAuth flow handlers
+│       ├── sdk/            # Embedded SDK (feature-based)
+│       │   └── src/
+│       │       ├── features/            # SDK feature modules
+│       │       │   ├── authentication/  # Provider auth logic
+│       │       │   ├── accounts/        # Account fetching
+│       │       │   ├── balances/        # Balance fetching
+│       │       │   └── jobs/            # Job management
+│       │       ├── providers/          # Provider implementations
+│       │       ├── shared/              # Shared utilities
+│       │       │   ├── constants/       # Provider constants
+│       │       │   ├── transformers/    # Data transformers
+│       │       │   └── types/           # Type definitions
+│       │       └── sdk.ts               # SDK entry point
+│       ├── services/        # Business logic services
+│       ├── repositories/    # Data access layer
+│       ├── schemas/         # MongoDB schemas
+│       ├── exceptions/      # Custom exceptions
+│       └── utils/           # Utility functions
 ├── bank-api-gateway/       # HTTP API Gateway
 ├── bank-demo-app/          # React Frontend
 ├── README.md               # This file
@@ -149,14 +188,41 @@ Body: { "provider": "airwallex" }
 **Get Account:**
 ```bash
 POST http://localhost:3001/api/bank/account
-Body: { "provider": "airwallex" }
+Body: { 
+  "provider": "airwallex",
+  "companyId": "company-123"
+}
 ```
 
 **Get Balances:**
 ```bash
 POST http://localhost:3001/api/bank/balances
-Body: { "provider": "airwallex" }
+Body: { 
+  "provider": "airwallex",
+  "companyId": "company-123"
+}
 ```
+
+**Get Jobs (Basiq only):**
+```bash
+POST http://localhost:3001/api/bank/jobs
+Body: { 
+  "provider": "basiq",
+  "companyId": "company-123",
+  "jobId": "optional-job-id"
+}
+```
+
+**Check Connection Status:**
+```bash
+POST http://localhost:3001/api/bank/connection-status
+Body: { 
+  "provider": "airwallex",
+  "companyId": "company-123"
+}
+```
+
+**Note:** All endpoints require `companyId` for multi-tenant support. Protected endpoints (`/account`, `/balances`, `/jobs`) require valid authentication tokens.
 
 ## TCP Communication
 
@@ -174,12 +240,51 @@ const client = ClientProxyFactory.create({
 });
 ```
 
-## Token Management
+## Token Management & Authentication
 
+### Token Storage
 - **Redis**: Fast token caching (TTL-based expiration)
 - **MongoDB**: Persistent token storage with metadata
 - **Auto-refresh**: Tokens refreshed automatically when expired
 - **Lock mechanism**: Prevents concurrent refresh attempts
+
+### Authentication Guard
+The system uses a **Token Authentication Guard** (`TokenAuthGuard`) to protect endpoints that require authentication:
+
+**Protected Endpoints:**
+- `bank.getAccount` - Requires valid token
+- `bank.getBalances` - Requires valid token
+- `bank.getJobs` - Requires valid token
+
+**Unprotected Endpoints:**
+- `bank.authenticate` - Used to obtain tokens
+- `bank.oauthRedirect` - Used to initiate OAuth flow
+- `bank.connectionStatus` - Checks connection status
+- `bank.deleteTokens` - Administrative operation
+
+**How It Works:**
+1. Guard intercepts requests to protected endpoints
+2. Extracts `provider` and `companyId` from message payload
+3. Validates token exists and is active via `TokenService`
+4. Performs provider-specific validation (e.g., Basiq requires userId)
+5. Attaches validated token document to request context
+6. Throws `TokenNotFoundException` or `InvalidTokenException` if validation fails
+
+**Usage:**
+```typescript
+@MessagePattern('bank.getAccount')
+@UseGuards(TokenAuthGuard)
+async getAccount(@Payload() data: GetAccountCommand) {
+    // Token is guaranteed to exist and be valid here
+    return this.bankService.getAccount(provider, data.companyId);
+}
+```
+
+**Benefits:**
+- **Centralized**: All token validation in one place
+- **Consistent**: Same validation logic for all protected endpoints
+- **Clean**: Feature modules don't need to check tokens manually
+- **Type-safe**: Proper exception types for different error scenarios
 
 ## Standard Data Formats
 
@@ -705,9 +810,12 @@ async getTransactions(provider: ProviderType, companyId: string, accountId: stri
 
 #### Step 10: Update Bank Controller (`bank-microservice/src/bank.controller.ts`)
 
-Add the message pattern handler:
+Add the message pattern handler with authentication guard:
 
 ```typescript
+import { UseGuards } from '@nestjs/common';
+import { TokenAuthGuard } from './guards/token-auth.guard';
+
 export interface GetTransactionsCommand {
     provider: ProviderType | string;
     companyId: string;
@@ -716,12 +824,16 @@ export interface GetTransactionsCommand {
 }
 
 @MessagePattern('bank.getTransactions')
+@UseGuards(TokenAuthGuard)  // Protect endpoint with token validation
 async getTransactions(@Payload() data: GetTransactionsCommand) {
     this.logger.debug('Received getTransactions command', data);
     const provider = this.validateProvider(data.provider);
+    // Token is guaranteed to exist and be valid here
     return this.bankService.getTransactions(provider, data.companyId, data.accountId, data.limit);
 }
 ```
+
+**Note:** Use `@UseGuards(TokenAuthGuard)` for all endpoints that require authentication. The guard will automatically validate tokens before the handler executes.
 
 #### Step 11: Update API Gateway Service (`bank-api-gateway/src/services/bank-client.service.ts`)
 
@@ -917,7 +1029,7 @@ When adding a new feature, follow this checklist:
 
 **Service Layer:**
 - [ ] Add method to `BankService`
-- [ ] Add message pattern to `BankController`
+- [ ] Add message pattern to `BankController` with `@UseGuards(TokenAuthGuard)` if endpoint requires authentication
 - [ ] Add command interface for message payload
 
 **API Gateway:**
@@ -937,10 +1049,11 @@ When adding a new feature, follow this checklist:
 
 1. **Separation of Concerns**: Each feature is isolated in its own module
 2. **Company Context**: All features accept `companyId` for multi-tenant support
-3. **Error Handling**: Use `ProviderOperationException` for consistent error handling
-4. **Logging**: Include provider and company context in all log messages
-5. **Type Safety**: Define types at each layer (SDK → Strategy → Service → Gateway → Frontend)
-6. **Standard Formats**: Transform provider-specific data to standard formats
+3. **Authentication**: Use `TokenAuthGuard` to protect endpoints requiring authentication
+4. **Error Handling**: Use `ProviderOperationException` for consistent error handling
+5. **Logging**: Include provider and company context in all log messages
+6. **Type Safety**: Define types at each layer (SDK → Strategy → Service → Gateway → Frontend)
+7. **Standard Formats**: Transform provider-specific data to standard formats
 
 ### Benefits of Feature-Based Architecture
 
@@ -949,6 +1062,35 @@ When adding a new feature, follow this checklist:
 - **Reusability**: Features can be shared across providers
 - **Scalability**: Easy to add new features without affecting existing ones
 - **Consistency**: All features follow the same pattern
+
+## Architecture Highlights
+
+### Feature-Based Organization
+The codebase is organized by **features** rather than by provider, making it easier to:
+- Add new features across all providers
+- Maintain consistent patterns
+- Test features independently
+- Understand the codebase structure
+
+### Strategy Pattern
+Each provider has a **Strategy** class that:
+- Extends `BaseStrategy` for common functionality
+- Manages provider instances per company (multi-tenant)
+- Delegates to feature modules (authentication, accounts, balances, jobs)
+- Handles OAuth flows separately
+
+### Guard-Based Authentication
+Token validation is centralized in `TokenAuthGuard`:
+- Validates tokens before protected endpoints execute
+- Provides consistent error messages
+- Reduces code duplication in feature modules
+- Makes authentication requirements explicit
+
+### Multi-Tenant Support
+All operations are scoped by `companyId`:
+- Tokens are stored per company
+- Provider instances are created per company
+- Each company has isolated authentication state
 
 ## See Also
 

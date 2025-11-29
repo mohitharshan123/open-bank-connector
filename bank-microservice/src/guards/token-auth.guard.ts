@@ -12,6 +12,7 @@ export interface AuthenticatedCommand {
     provider: ProviderType | string;
     companyId: string;
     _tokenDoc?: any;
+}
 
 /**
  * Auth guard that validates tokens before allowing access to protected endpoints
