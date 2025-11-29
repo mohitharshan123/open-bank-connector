@@ -1,30 +1,32 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ProviderNotInitializedException, ProviderOperationException } from '../../../exceptions/provider.exception';
 import { AirwallexAuthResponse, BasiqCreateUserRequest, BasiqUser, ProviderInstance } from '../../../sdk';
 import { TokenService } from '../../../services/token.service';
 import { ProviderType } from '../../../types/provider.enum';
 import { BasiqOAuth } from '../../oauth/basiq.oauth';
 
+@Injectable()
 export class BasiqAuthentication {
-    constructor(
-        private readonly providerInstance: ProviderInstance,
-        private readonly tokenService: TokenService,
-        private readonly oauth: BasiqOAuth,
-        private readonly companyId: string,
-        private readonly logger: Logger,
-    ) { }
+    private readonly logger = new Logger(BasiqAuthentication.name);
+
+    constructor(private readonly tokenService: TokenService) { }
 
     /**
      * Authenticate with Basiq
      */
-    async authenticate(userId?: string): Promise<AirwallexAuthResponse & { redirectUrl?: string }> {
+    async authenticate(
+        providerInstance: ProviderInstance,
+        oauth: BasiqOAuth,
+        companyId: string,
+        userId?: string,
+    ): Promise<AirwallexAuthResponse & { redirectUrl?: string }> {
         this.logger.debug(`[BasiqAuthentication] Authenticating with Basiq`, { userId });
 
         try {
             this.logger.debug(`[BasiqAuthentication] Getting provider instance...`);
             this.logger.debug(`[BasiqAuthentication] Provider instance obtained, calling authenticate to get bearer token...`);
 
-            const authResponse = await (this.providerInstance as any).authenticate(userId);
+            const authResponse = await (providerInstance as any).authenticate(userId);
             this.logger.debug(`[BasiqAuthentication] Authentication response received`);
 
             const expiresIn = authResponse.expires_in || 1800;
@@ -57,18 +59,18 @@ export class BasiqAuthentication {
                     lastName: `${Date.now()}`,
                 };
                 this.logger.debug(`[BasiqAuthentication] User data for creation`, { userData });
-                const user = await this.createUser(userData);
+                const user = await this.createUser(providerInstance, userData);
                 userId = user.id;
                 this.logger.log(`[BasiqAuthentication] Created user ${userId}`);
             }
 
-            await this.tokenService.storeToken(ProviderType.BASIQ, this.companyId, token, expiresIn, userId);
+            await this.tokenService.storeToken(ProviderType.BASIQ, companyId, token, expiresIn, userId);
             this.logger.log(
                 `Successfully authenticated with Basiq and stored token with userId: ${userId}`,
             );
 
             this.logger.debug(`[BasiqAuthentication] Fetching client token for OAuth...`);
-            const { redirectUrl } = await this.oauth.getOAuthRedirectUrl(userId);
+            const { redirectUrl } = await oauth.getOAuthRedirectUrl(userId);
             this.logger.log(`[BasiqAuthentication] Client token fetched successfully`);
 
             return {
@@ -88,15 +90,15 @@ export class BasiqAuthentication {
     /**
      * Create a Basiq user
      */
-    private async createUser(userData: BasiqCreateUserRequest): Promise<BasiqUser> {
+    private async createUser(providerInstance: ProviderInstance, userData: BasiqCreateUserRequest): Promise<BasiqUser> {
         this.logger.log('[BasiqAuthentication] Creating Basiq user', { userData });
 
         try {
-            if (typeof (this.providerInstance as any).createUser !== 'function') {
+            if (typeof (providerInstance as any).createUser !== 'function') {
                 throw new Error('Basiq provider does not support createUser');
             }
 
-            const user = await (this.providerInstance as any).createUser(userData);
+            const user = await (providerInstance as any).createUser(userData);
             this.logger.log(`Successfully created Basiq user: ${user.id}`);
             return user;
         } catch (error: any) {

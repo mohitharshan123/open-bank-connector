@@ -1,22 +1,20 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ProviderNotInitializedException, ProviderOperationException } from '../../../exceptions/provider.exception';
 import { ProviderInstance, StandardAccount } from '../../../sdk';
 import { ProviderType } from '../../../types/provider.enum';
 
+@Injectable()
 export class AirwallexAccounts {
-    constructor(
-        private readonly providerInstance: ProviderInstance,
-        private readonly logger: Logger,
-    ) { }
+    private readonly logger = new Logger(AirwallexAccounts.name);
 
     /**
      * Get accounts for Airwallex
      */
-    async getAccounts(): Promise<StandardAccount[]> {
+    async getAccounts(providerInstance: ProviderInstance): Promise<StandardAccount[]> {
         this.logger.debug(`Getting accounts for Airwallex`);
 
         try {
-            const result = await this.providerInstance.getAccount();
+            const result = await providerInstance.getAccount();
             this.logger.log(`Successfully retrieved ${result.length} account(s) from Airwallex`);
             return result;
         } catch (error) {

@@ -25,16 +25,16 @@ import { IProviderStrategy } from './provider-strategy.interface';
 @Injectable()
 export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {
     private oauthInstances: Map<string, BasiqOAuth> = new Map();
-    private authenticationInstances: Map<string, BasiqAuthentication> = new Map();
-    private accountsInstances: Map<string, BasiqAccounts> = new Map();
-    private balancesInstances: Map<string, BasiqBalances> = new Map();
-    private jobsInstances: Map<string, BasiqJobs> = new Map();
 
     constructor(
         configService: ConfigService,
         tokenService: TokenService,
         httpService: HttpService,
         sdk: OpenBankSDK,
+        private readonly basiqAuthentication: BasiqAuthentication,
+        private readonly basiqAccounts: BasiqAccounts,
+        private readonly basiqBalances: BasiqBalances,
+        private readonly basiqJobs: BasiqJobs,
     ) {
         super(configService, tokenService, httpService, sdk, BasiqStrategy.name);
     }
@@ -68,60 +68,37 @@ export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {
         this.providerInstances.set(companyId, providerInstance);
 
         const oauth = new BasiqOAuth(authHttpClient, config, this.logger);
-        const authentication = new BasiqAuthentication(
-            providerInstance,
-            this.tokenService,
-            oauth,
-            companyId,
-            this.logger,
-        );
-        const accounts = new BasiqAccounts(providerInstance, this.tokenService, companyId, this.logger);
-        const balances = new BasiqBalances(providerInstance, this.tokenService, companyId, this.logger);
-        const jobs = new BasiqJobs(providerInstance, this.tokenService, companyId, this.logger);
-
         this.oauthInstances.set(companyId, oauth);
-        this.authenticationInstances.set(companyId, authentication);
-        this.accountsInstances.set(companyId, accounts);
-        this.balancesInstances.set(companyId, balances);
-        this.jobsInstances.set(companyId, jobs);
 
         this.logger.log(`✓ Basiq provider initialized successfully for company: ${companyId}`);
     }
 
     async authenticate(companyId: string, userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse & { redirectUrl?: string }> {
         await this.initialize(companyId);
-        const authentication = this.authenticationInstances.get(companyId);
-        if (!authentication) {
+        const providerInstance = await this.getProvider(companyId);
+        const oauth = this.oauthInstances.get(companyId);
+        if (!oauth) {
             throw new ProviderNotInitializedException(ProviderType.BASIQ);
         }
-        return authentication.authenticate(userId);
+        return this.basiqAuthentication.authenticate(providerInstance, oauth, companyId, userId);
     }
 
     async getAccount(companyId: string): Promise<StandardAccount[]> {
         await this.initialize(companyId);
-        const accounts = this.accountsInstances.get(companyId);
-        if (!accounts) {
-            throw new ProviderNotInitializedException(ProviderType.BASIQ);
-        }
-        return accounts.getAccounts();
+        const providerInstance = await this.getProvider(companyId);
+        return this.basiqAccounts.getAccounts(providerInstance, companyId);
     }
 
     async getBalances(companyId: string): Promise<StandardBalance[]> {
         await this.initialize(companyId);
-        const balances = this.balancesInstances.get(companyId);
-        if (!balances) {
-            throw new ProviderNotInitializedException(ProviderType.BASIQ);
-        }
-        return balances.getBalances();
+        const providerInstance = await this.getProvider(companyId);
+        return this.basiqBalances.getBalances(providerInstance, companyId);
     }
 
     async getJobs(companyId: string, jobId?: string): Promise<StandardJob[]> {
         await this.initialize(companyId);
-        const jobs = this.jobsInstances.get(companyId);
-        if (!jobs) {
-            throw new ProviderNotInitializedException(ProviderType.BASIQ);
-        }
-        return jobs.getJobs(jobId);
+        const providerInstance = await this.getProvider(companyId);
+        return this.basiqJobs.getJobs(providerInstance, companyId, jobId);
     }
 
     async getOAuthRedirectUrl(

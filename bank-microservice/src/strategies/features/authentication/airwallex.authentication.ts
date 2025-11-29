@@ -1,34 +1,37 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ProviderNotInitializedException, ProviderOperationException } from '../../../exceptions/provider.exception';
 import { AirwallexAuthResponse, ProviderInstance } from '../../../sdk';
 import { TokenService } from '../../../services/token.service';
 import { ProviderType } from '../../../types/provider.enum';
 import { AirwallexOAuth } from '../../oauth/airwallex.oauth';
 
+@Injectable()
 export class AirwallexAuthentication {
-    constructor(
-        private readonly providerInstance: ProviderInstance,
-        private readonly tokenService: TokenService,
-        private readonly oauth: AirwallexOAuth,
-        private readonly companyId: string,
-        private readonly logger: Logger,
-    ) { }
+    private readonly logger = new Logger(AirwallexAuthentication.name);
+
+    constructor(private readonly tokenService: TokenService) { }
 
     /**
      * Authenticate with Airwallex
      */
-    async authenticate(userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse> {
+    async authenticate(
+        providerInstance: ProviderInstance,
+        oauth: AirwallexOAuth,
+        companyId: string,
+        userId?: string,
+        oauthCode?: string,
+    ): Promise<AirwallexAuthResponse> {
         this.logger.debug(`Authenticating with Airwallex`, { userId, hasOAuthCode: !!oauthCode });
 
         try {
             // For Airwallex OAuth2: Exchange code for token
             if (oauthCode) {
-                return await this.oauth.exchangeOAuthCode(oauthCode);
+                return await oauth.exchangeOAuthCode(oauthCode);
             }
 
             this.logger.debug(`Provider instance obtained, calling authenticate directly...`);
 
-            const authResponse = await this.providerInstance.authenticate();
+            const authResponse = await providerInstance.authenticate();
             this.logger.debug(`Authentication response received`);
 
             const expiresIn = authResponse.expires_in || 1800;
@@ -38,7 +41,7 @@ export class AirwallexAuthentication {
                 throw new Error('Token not found in auth response');
             }
 
-            await this.tokenService.storeToken(ProviderType.AIRWALLEX, this.companyId, token, expiresIn, userId);
+            await this.tokenService.storeToken(ProviderType.AIRWALLEX, companyId, token, expiresIn, userId);
             this.logger.log(`Successfully authenticated with Airwallex and stored token`);
 
             return authResponse;

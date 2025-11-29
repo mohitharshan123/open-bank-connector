@@ -1,26 +1,24 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ProviderNotInitializedException, ProviderOperationException } from '../../../exceptions/provider.exception';
 import { isBasiqToken } from '../../../schemas/token.schema';
 import { ProviderInstance, StandardAccount } from '../../../sdk';
 import { TokenService } from '../../../services/token.service';
 import { ProviderType } from '../../../types/provider.enum';
 
+@Injectable()
 export class BasiqAccounts {
-    constructor(
-        private readonly providerInstance: ProviderInstance,
-        private readonly tokenService: TokenService,
-        private readonly companyId: string,
-        private readonly logger: Logger,
-    ) { }
+    private readonly logger = new Logger(BasiqAccounts.name);
+
+    constructor(private readonly tokenService: TokenService) { }
 
     /**
      * Get accounts for Basiq user
      */
-    async getAccounts(): Promise<StandardAccount[]> {
+    async getAccounts(providerInstance: ProviderInstance, companyId: string): Promise<StandardAccount[]> {
         this.logger.debug(`Getting accounts for Basiq`);
 
         try {
-            const tokenDoc = await this.tokenService.getActiveToken(ProviderType.BASIQ, this.companyId);
+            const tokenDoc = await this.tokenService.getActiveToken(ProviderType.BASIQ, companyId);
 
             if (!tokenDoc || !isBasiqToken(tokenDoc)) {
                 throw new ProviderOperationException(ProviderType.BASIQ, 'get account', new Error('Token validation failed'));
@@ -32,7 +30,7 @@ export class BasiqAccounts {
                 throw new ProviderOperationException(ProviderType.BASIQ, 'get account', new Error('User ID not found in token'));
             }
 
-            const result = await this.providerInstance.getAccount(userId);
+            const result = await providerInstance.getAccount(userId);
             this.logger.log(`Successfully retrieved ${result.length} account(s) from Basiq`);
             return result;
         } catch (error) {

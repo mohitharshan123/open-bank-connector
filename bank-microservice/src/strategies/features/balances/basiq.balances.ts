@@ -1,26 +1,24 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ProviderNotInitializedException, ProviderOperationException } from '../../../exceptions/provider.exception';
 import { isBasiqToken } from '../../../schemas/token.schema';
 import { ProviderInstance, StandardBalance } from '../../../sdk';
 import { TokenService } from '../../../services/token.service';
 import { ProviderType } from '../../../types/provider.enum';
 
+@Injectable()
 export class BasiqBalances {
-    constructor(
-        private readonly providerInstance: ProviderInstance,
-        private readonly tokenService: TokenService,
-        private readonly companyId: string,
-        private readonly logger: Logger,
-    ) { }
+    private readonly logger = new Logger(BasiqBalances.name);
+
+    constructor(private readonly tokenService: TokenService) { }
 
     /**
      * Get balances for Basiq user
      */
-    async getBalances(): Promise<StandardBalance[]> {
+    async getBalances(providerInstance: ProviderInstance, companyId: string): Promise<StandardBalance[]> {
         this.logger.debug(`Getting balances for Basiq`);
 
         try {
-            const tokenDoc = await this.tokenService.getActiveToken(ProviderType.BASIQ, this.companyId);
+            const tokenDoc = await this.tokenService.getActiveToken(ProviderType.BASIQ, companyId);
 
             if (!tokenDoc || !isBasiqToken(tokenDoc)) {
                 throw new ProviderOperationException(ProviderType.BASIQ, 'get balances', new Error('Token validation failed'));
@@ -31,7 +29,7 @@ export class BasiqBalances {
                 throw new ProviderOperationException(ProviderType.BASIQ, 'get balances', new Error('User ID not found in token'));
             }
 
-            const result = await this.providerInstance.getBalances(userId);
+            const result = await providerInstance.getBalances(userId);
             this.logger.log(`Successfully retrieved ${result.length} balances from Basiq`);
             return result;
         } catch (error) {
