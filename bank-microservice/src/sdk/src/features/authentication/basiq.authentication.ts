@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { IHttpClient } from '../../shared/interfaces/https-client.interface';
 import { BASIQ_CONSTANTS } from '../../shared/constants/basiq.constants';
+import { HttpRequestBuilder } from '../../shared/builders/http-request.builder';
 import type { BasiqAuthResponse, BasiqConfig } from '../../shared/types/basiq';
 
 @Injectable()
@@ -23,18 +24,15 @@ export class BasiqAuthentication {
             const baseUrl = config.baseUrl || BASIQ_CONSTANTS.BASE_URL;
             const apiKey = (config.apiKey || '').trim();
 
-            const response = await httpClient.post<BasiqAuthResponse>(
-                BASIQ_CONSTANTS.ENDPOINTS.AUTHENTICATE,
-                formData.toString(),
-                {
-                    baseURL: baseUrl,
-                    headers: {
-                        'Authorization': `Basic ${apiKey}`,
-                        'Content-Type': BASIQ_CONSTANTS.HEADERS.CONTENT_TYPE_FORM,
-                        [BASIQ_CONSTANTS.HEADERS.VERSION]: BASIQ_CONSTANTS.API_VERSION,
-                    },
-                }
-            );
+            const requestConfig = HttpRequestBuilder.post(BASIQ_CONSTANTS.ENDPOINTS.AUTHENTICATE, formData.toString())
+                .baseUrl(baseUrl)
+                .headers({
+                    'Authorization': `Basic ${apiKey}`,
+                    'Content-Type': BASIQ_CONSTANTS.HEADERS.CONTENT_TYPE_FORM,
+                    [BASIQ_CONSTANTS.HEADERS.VERSION]: BASIQ_CONSTANTS.API_VERSION,
+                })
+                .build();
+            const response = await httpClient.request<BasiqAuthResponse>(requestConfig);
 
             const authResponse = response.data;
             const accessToken = authResponse.access_token;

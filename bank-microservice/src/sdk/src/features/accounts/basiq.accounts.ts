@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { IHttpClient } from '../../shared/interfaces/https-client.interface';
 import { BASIQ_CONSTANTS } from '../../shared/constants/basiq.constants';
+import { HttpRequestBuilder } from '../../shared/builders/http-request.builder';
 import { BasiqTransformer } from '../../shared/transformers/basiq.transformer';
 import type { BasiqAccount } from '../../shared/types/basiq';
 import type { StandardAccount } from '../../shared/types/common';
@@ -23,12 +24,10 @@ export class BasiqAccounts {
 
         try {
             const endpoint = BASIQ_CONSTANTS.ENDPOINTS.GET_ACCOUNTS(userId);
-            const response = await httpClient.request<{ data: BasiqAccount[] }>({
-                method: 'GET',
-                url: endpoint,
-                baseURL: baseUrl,
-                headers: { 'Content-Type': 'application/json' },
-            });
+            const requestConfig = HttpRequestBuilder.get(endpoint)
+                .baseUrl(baseUrl)
+                .build();
+            const response = await httpClient.request<{ data: BasiqAccount[] }>(requestConfig);
 
             return this.transformer.transformAccounts(response.data);
         } catch (error: any) {

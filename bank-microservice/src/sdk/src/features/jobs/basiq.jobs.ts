@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BASIQ_CONSTANTS } from '../../shared/constants/basiq.constants';
 import type { IHttpClient } from '../../shared/interfaces/https-client.interface';
+import { HttpRequestBuilder } from '../../shared/builders/http-request.builder';
 import { BasiqTransformer } from '../../shared/transformers/basiq.transformer';
 import type { BasiqJob } from '../../shared/types/basiq';
 import type { StandardJob } from '../../shared/types/common';
@@ -21,21 +22,17 @@ export class BasiqJobs {
         try {
             if (jobId) {
                 const endpoint = BASIQ_CONSTANTS.ENDPOINTS.GET_JOB(jobId);
-                const response = await httpClient.request<BasiqJob>({
-                    method: 'GET',
-                    url: endpoint,
-                    baseURL: baseUrl,
-                    headers: { 'Content-Type': 'application/json' },
-                });
+                const requestConfig = HttpRequestBuilder.get(endpoint)
+                    .baseUrl(baseUrl)
+                    .build();
+                const response = await httpClient.request<BasiqJob>(requestConfig);
                 return this.transformer.transformJobs(response.data);
             } else if (userId) {
                 const endpoint = BASIQ_CONSTANTS.ENDPOINTS.GET_JOBS(userId);
-                const response = await httpClient.request<{ data: BasiqJob[] } | BasiqJob[]>({
-                    method: 'GET',
-                    url: endpoint,
-                    baseURL: baseUrl,
-                    headers: { 'Content-Type': 'application/json' },
-                });
+                const requestConfig = HttpRequestBuilder.get(endpoint)
+                    .baseUrl(baseUrl)
+                    .build();
+                const response = await httpClient.request<{ data: BasiqJob[] } | BasiqJob[]>(requestConfig);
                 return this.transformer.transformJobs(response.data);
             } else {
                 throw new Error('Basiq userId or jobId is required to get jobs');

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BASIQ_CONSTANTS } from '../../shared/constants/basiq.constants';
 import type { IHttpClient } from '../../shared/interfaces/https-client.interface';
+import { HttpRequestBuilder } from '../../shared/builders/http-request.builder';
 import { BasiqTransformer } from '../../shared/transformers/basiq.transformer';
 import type { BasiqBalance } from '../../shared/types/basiq';
 import type { StandardBalance } from '../../shared/types/common';
@@ -23,12 +24,10 @@ export class BasiqBalances {
 
         try {
             const endpoint = BASIQ_CONSTANTS.ENDPOINTS.GET_BALANCES(userId);
-            const response = await httpClient.request<BasiqBalance[] | { data: BasiqBalance[] }>({
-                method: 'GET',
-                url: endpoint,
-                baseURL: baseUrl,
-                headers: { 'Content-Type': 'application/json' },
-            });
+            const requestConfig = HttpRequestBuilder.get(endpoint)
+                .baseUrl(baseUrl)
+                .build();
+            const response = await httpClient.request<BasiqBalance[] | { data: BasiqBalance[] }>(requestConfig);
 
             return this.transformer.transformBalances(response.data);
         } catch (error: any) {

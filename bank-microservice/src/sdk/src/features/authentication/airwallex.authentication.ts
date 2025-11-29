@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { IHttpClient } from '../../shared/interfaces/https-client.interface';
 import { AIRWALLEX_CONSTANTS } from '../../shared/constants/airwallex.constants';
+import { HttpRequestBuilder } from '../../shared/builders/http-request.builder';
 import type { AirwallexAuthResponse, AirwallexConfig } from '../../shared/types/airwallex';
 
 @Injectable()
@@ -17,18 +18,15 @@ export class AirwallexAuthentication {
             const baseUrl = config.baseUrl || AIRWALLEX_CONSTANTS.BASE_URL;
             this.logger.debug(`[AirwallexAuthentication] Making authentication request to ${baseUrl}${AIRWALLEX_CONSTANTS.ENDPOINTS.AUTHENTICATE}`);
 
-            const response = await httpClient.post<AirwallexAuthResponse>(
-                AIRWALLEX_CONSTANTS.ENDPOINTS.AUTHENTICATE,
-                {},
-                {
-                    baseURL: baseUrl,
-                    headers: {
-                        'Content-Type': AIRWALLEX_CONSTANTS.HEADERS.CONTENT_TYPE,
-                        [AIRWALLEX_CONSTANTS.HEADERS.API_KEY]: config.apiKey,
-                        [AIRWALLEX_CONSTANTS.HEADERS.CLIENT_ID]: config.clientId,
-                    },
-                }
-            );
+            const requestConfig = HttpRequestBuilder.post(AIRWALLEX_CONSTANTS.ENDPOINTS.AUTHENTICATE, {})
+                .baseUrl(baseUrl)
+                .headers({
+                    'Content-Type': AIRWALLEX_CONSTANTS.HEADERS.CONTENT_TYPE,
+                    [AIRWALLEX_CONSTANTS.HEADERS.API_KEY]: config.apiKey,
+                    [AIRWALLEX_CONSTANTS.HEADERS.CLIENT_ID]: config.clientId,
+                })
+                .build();
+            const response = await httpClient.request<AirwallexAuthResponse>(requestConfig);
 
             this.logger.log('[AirwallexAuthentication] Authentication successful', {
                 hasAccessToken: !!response.data?.access_token,

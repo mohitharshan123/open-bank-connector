@@ -3,6 +3,7 @@ import { BasiqAccounts } from '../features/accounts/basiq.accounts';
 import { BasiqAuthentication } from '../features/authentication/basiq.authentication';
 import { BasiqBalances } from '../features/balances/basiq.balances';
 import { BasiqJobs } from '../features/jobs/basiq.jobs';
+import { HttpRequestBuilder } from '../shared/builders/http-request.builder';
 import { BASIQ_CONSTANTS } from '../shared/constants/basiq.constants';
 import type { IHttpClient } from '../shared/interfaces/https-client.interface';
 import type { BasiqAuthResponse, BasiqConfig, BasiqCreateUserRequest, BasiqUser } from '../shared/types/basiq';
@@ -111,23 +112,22 @@ export class BasiqProvider extends BaseProvider {
         this.logger.log(`[BasiqProvider] Creating Basiq user with bearer token`, { userData });
 
         try {
-            const response = await this.authHttpClient.post<BasiqUser>(
-                BASIQ_CONSTANTS.ENDPOINTS.CREATE_USER,
-                {
-                    email: userData.email,
-                    mobile: userData.mobile,
-                    firstName: userData.firstName,
-                    lastName: userData.lastName,
-                },
-                {
-                    baseURL: this.baseUrl,
-                    headers: {
-                        'Authorization': `Bearer ${bearerToken}`,
-                        'Content-Type': BASIQ_CONSTANTS.HEADERS.CONTENT_TYPE_JSON,
-                        [BASIQ_CONSTANTS.HEADERS.VERSION]: BASIQ_CONSTANTS.API_VERSION,
-                    },
-                }
-            );
+            const usertoCreate = {
+                email: userData.email,
+                mobile: userData.mobile,
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+            };
+            const requestConfig = HttpRequestBuilder.post(BASIQ_CONSTANTS.ENDPOINTS.CREATE_USER, usertoCreate)
+                .baseUrl(this.baseUrl)
+                .headers({
+                    'Authorization': `Bearer ${bearerToken}`,
+                    'Content-Type': BASIQ_CONSTANTS.HEADERS.CONTENT_TYPE_JSON,
+                    [BASIQ_CONSTANTS.HEADERS.VERSION]: BASIQ_CONSTANTS.API_VERSION,
+                })
+                .build();
+
+            const response = await this.authHttpClient.request<BasiqUser>(requestConfig);
 
             const user = response.data;
             this.logger.log(`[BasiqProvider] Basiq user created successfully`, { userId: user.id });

@@ -31,7 +31,6 @@ import { BasiqJobs } from '../sdk/src/features/jobs/basiq.jobs';
     ],
     exports: [
         OpenBankSDK,
-        // Export feature services so they can be injected in providers
         AirwallexAccounts,
         AirwallexAuthentication,
         AirwallexBalances,
