@@ -16,13 +16,11 @@ import { BaseStrategy } from './base.strategy';
 import { AirwallexAccounts } from './features/accounts/airwallex.accounts';
 import { AirwallexAuthentication } from './features/authentication/airwallex.authentication';
 import { AirwallexBalances } from './features/balances/airwallex.balances';
-import { AirwallexOAuth } from './oauth/airwallex.oauth';
+import { AirwallexOAuth } from './features/oauth/airwallex.oauth';
 import { IProviderStrategy } from './provider-strategy.interface';
 
 @Injectable()
 export class AirwallexStrategy extends BaseStrategy implements IProviderStrategy {
-    private oauthInstances: Map<string, AirwallexOAuth> = new Map();
-
     constructor(
         configService: ConfigService,
         tokenService: TokenService,
@@ -31,6 +29,7 @@ export class AirwallexStrategy extends BaseStrategy implements IProviderStrategy
         private readonly airwallexAuthentication: AirwallexAuthentication,
         private readonly airwallexAccounts: AirwallexAccounts,
         private readonly airwallexBalances: AirwallexBalances,
+        private readonly airwallexOAuth: AirwallexOAuth,
     ) {
         super(configService, tokenService, httpService, sdk, AirwallexStrategy.name);
     }
@@ -64,20 +63,20 @@ export class AirwallexStrategy extends BaseStrategy implements IProviderStrategy
 
         this.providerInstances.set(companyId, providerInstance);
 
-        const oauth = new AirwallexOAuth(authHttpClient, this.tokenService, config, companyId, this.logger);
-        this.oauthInstances.set(companyId, oauth);
-
         this.logger.log(`✓ Airwallex provider initialized successfully for company: ${companyId}`);
     }
 
     async authenticate(companyId: string, userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse> {
         await this.initialize(companyId);
         const providerInstance = await this.getProvider(companyId);
-        const oauth = this.oauthInstances.get(companyId);
-        if (!oauth) {
-            throw new ProviderNotInitializedException(ProviderType.AIRWALLEX);
+        const authHttpClient = this.createAuthHttpClient();
+        const config = this.configService.get<BankConfig['airwallex']>('bank.airwallex')!;
+
+        if (oauthCode) {
+            return await this.airwallexOAuth.exchangeOAuthCode(authHttpClient, config, companyId, oauthCode);
         }
-        return this.airwallexAuthentication.authenticate(providerInstance, oauth, companyId, userId, oauthCode);
+
+        return this.airwallexAuthentication.authenticate(providerInstance, this.airwallexOAuth, companyId, userId, oauthCode);
     }
 
     async getAccount(companyId: string): Promise<StandardAccount[]> {
@@ -107,10 +106,7 @@ export class AirwallexStrategy extends BaseStrategy implements IProviderStrategy
         state?: string,
     ): Promise<{ redirectUrl: string; userId?: string; state?: string; codeVerifier?: string }> {
         await this.initialize(companyId);
-        const oauth = this.oauthInstances.get(companyId);
-        if (!oauth) {
-            throw new ProviderNotInitializedException(ProviderType.AIRWALLEX);
-        }
-        return oauth.getOAuthRedirectUrl(userId, action, state);
+        const config = this.configService.get<BankConfig['airwallex']>('bank.airwallex')!;
+        return this.airwallexOAuth.getOAuthRedirectUrl(config, userId, action, state);
     }
 }

@@ -6,11 +6,10 @@ import { ProviderNotInitializedException } from '../exceptions/provider.exceptio
 import {
     AirwallexAuthResponse,
     BasiqCreateUserRequest,
-    BasiqUser,
     OpenBankSDK,
     StandardAccount,
     StandardBalance,
-    StandardJob,
+    StandardJob
 } from '../sdk';
 import { TokenService } from '../services/token.service';
 import { ProviderType } from '../types/provider.enum';
@@ -19,13 +18,11 @@ import { BasiqAccounts } from './features/accounts/basiq.accounts';
 import { BasiqAuthentication } from './features/authentication/basiq.authentication';
 import { BasiqBalances } from './features/balances/basiq.balances';
 import { BasiqJobs } from './features/jobs/basiq.jobs';
-import { BasiqOAuth } from './oauth/basiq.oauth';
+import { BasiqOAuth } from './features/oauth/basiq.oauth';
 import { IProviderStrategy } from './provider-strategy.interface';
 
 @Injectable()
 export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {
-    private oauthInstances: Map<string, BasiqOAuth> = new Map();
-
     constructor(
         configService: ConfigService,
         tokenService: TokenService,
@@ -35,6 +32,7 @@ export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {
         private readonly basiqAccounts: BasiqAccounts,
         private readonly basiqBalances: BasiqBalances,
         private readonly basiqJobs: BasiqJobs,
+        private readonly basiqOAuth: BasiqOAuth,
     ) {
         super(configService, tokenService, httpService, sdk, BasiqStrategy.name);
     }
@@ -67,20 +65,15 @@ export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {
 
         this.providerInstances.set(companyId, providerInstance);
 
-        const oauth = new BasiqOAuth(authHttpClient, config, this.logger);
-        this.oauthInstances.set(companyId, oauth);
-
         this.logger.log(`✓ Basiq provider initialized successfully for company: ${companyId}`);
     }
 
     async authenticate(companyId: string, userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse & { redirectUrl?: string }> {
         await this.initialize(companyId);
         const providerInstance = await this.getProvider(companyId);
-        const oauth = this.oauthInstances.get(companyId);
-        if (!oauth) {
-            throw new ProviderNotInitializedException(ProviderType.BASIQ);
-        }
-        return this.basiqAuthentication.authenticate(providerInstance, oauth, companyId, userId);
+        const authHttpClient = this.createAuthHttpClient();
+        const config = this.configService.get<BankConfig['basiq']>('bank.basiq')!;
+        return this.basiqAuthentication.authenticate(providerInstance, this.basiqOAuth, companyId, userId);
     }
 
     async getAccount(companyId: string): Promise<StandardAccount[]> {
@@ -108,10 +101,8 @@ export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {
         state?: string,
     ): Promise<{ redirectUrl: string; userId?: string; state?: string; codeVerifier?: string }> {
         await this.initialize(companyId);
-        const oauth = this.oauthInstances.get(companyId);
-        if (!oauth) {
-            throw new ProviderNotInitializedException(ProviderType.BASIQ);
-        }
+        const authHttpClient = this.createAuthHttpClient();
+        const config = this.configService.get<BankConfig['basiq']>('bank.basiq')!;
 
         this.logger.log('[BasiqStrategy] Authenticating to get bearer token...');
 
@@ -125,41 +116,20 @@ export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {
         }
 
         if (!userId) {
-            this.logger.log('[BasiqStrategy] Creating user...');
-            const user = await this.createUser(companyId, {
+            const providerInstance = await this.getProvider(companyId);
+            const userData: BasiqCreateUserRequest = {
                 email: `user-${Date.now()}@example.com`,
-            });
-            userId = user.id;
-            this.logger.log(`[BasiqStrategy] Created user ${userId} for OAuth`);
-        }
-
-        const { redirectUrl } = await oauth.getOAuthRedirectUrl(userId, action);
-        return { redirectUrl, userId };
-    }
-
-    /**
-     * Create a Basiq user
-     */
-    private async createUser(companyId: string, userData: BasiqCreateUserRequest): Promise<BasiqUser> {
-        await this.initialize(companyId);
-        const providerInstance = await this.getProvider(companyId);
-
-        this.logger.log('[BasiqStrategy] Creating Basiq user', { userData });
-
-        try {
-            if (typeof (providerInstance as any).createUser !== 'function') {
+            };
+            if (typeof (providerInstance as any).createUser === 'function') {
+                const user = await (providerInstance as any).createUser(userData);
+                userId = user.id;
+                this.logger.log(`[BasiqStrategy] Created user ${userId} for OAuth`);
+            } else {
                 throw new Error('Basiq provider does not support createUser');
             }
-
-            const user = await (providerInstance as any).createUser(userData);
-            this.logger.log(`Successfully created Basiq user: ${user.id}`);
-            return user;
-        } catch (error: any) {
-            this.logger.error(
-                `[BasiqStrategy] Failed to create Basiq user: ${error?.message || 'Unknown error'}`,
-                error?.stack,
-            );
-            throw error;
         }
+
+        const { redirectUrl } = await this.basiqOAuth.getOAuthRedirectUrl(authHttpClient, config, userId!, action);
+        return { redirectUrl, userId: userId! };
     }
 }

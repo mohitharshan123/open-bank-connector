@@ -1,53 +1,48 @@
-import { Logger } from '@nestjs/common';
-import { IHttpClient } from '../../sdk';
-import { ProviderType } from '../../types/provider.enum';
-import { BankConfig } from '../../config/bank.config';
+import { Injectable, Logger } from '@nestjs/common';
+import { IHttpClient } from '../../../sdk';
+import { HttpRequestBuilder } from '../../../sdk/src/shared/builders/http-request.builder';
+import { UrlBuilder } from '../../../sdk/src/shared/builders/url.builder';
+import { BASIQ_CONSTANTS } from '../../../sdk/src/shared/constants/basiq.constants';
+import { BankConfig } from '../../../config/bank.config';
 
+@Injectable()
 export class BasiqOAuth {
-    constructor(
-        private readonly httpClient: IHttpClient,
-        private readonly config: BankConfig['basiq'],
-        private readonly logger: Logger,
-    ) { }
+    private readonly logger = new Logger(BasiqOAuth.name);
 
     /**
      * Fetch client token from Basiq API for OAuth consent flow
      * This calls /token endpoint with scope=CLIENT_ACCESS and userId
      */
-    async getClientToken(userId: string): Promise<string> {
+    async getClientToken(httpClient: IHttpClient, config: BankConfig['basiq'], userId: string): Promise<string> {
         this.logger.debug(`[BasiqOAuth] Fetching client token for userId: ${userId}`);
 
         try {
-            const baseUrl = this.config?.baseUrl || 'https://au-api.basiq.io';
-            const apiKey = this.config?.apiKey || '';
+            const baseUrl = config?.baseUrl || BASIQ_CONSTANTS.BASE_URL;
+            const apiKey = config?.apiKey || '';
 
             if (!apiKey) {
                 throw new Error('Basiq apiKey is required for client token request');
             }
 
-            const authHeader = `Basic ${apiKey}`;
-
             const formData = new URLSearchParams();
-            formData.append('scope', 'CLIENT_ACCESS');
+            formData.append('scope', BASIQ_CONSTANTS.SCOPES.CLIENT_ACCESS);
             formData.append('userId', userId);
 
             this.logger.debug(`[BasiqOAuth] Requesting client token from ${baseUrl}/token`, {
                 userId,
-                scope: 'CLIENT_ACCESS',
+                scope: BASIQ_CONSTANTS.SCOPES.CLIENT_ACCESS,
             });
 
-            const response = await this.httpClient.post<any>(
-                '/token',
-                formData.toString(),
-                {
-                    baseURL: baseUrl,
-                    headers: {
-                        'Authorization': authHeader,
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'basiq-version': '3.0',
-                    },
-                }
-            );
+            const requestConfig = HttpRequestBuilder.post(BASIQ_CONSTANTS.ENDPOINTS.AUTHENTICATE, formData.toString())
+                .baseUrl(baseUrl)
+                .headers({
+                    'Authorization': `Basic ${apiKey}`,
+                    'Content-Type': BASIQ_CONSTANTS.HEADERS.CONTENT_TYPE_FORM,
+                    [BASIQ_CONSTANTS.HEADERS.VERSION]: BASIQ_CONSTANTS.API_VERSION,
+                })
+                .build();
+
+            const response = await httpClient.request<any>(requestConfig);
 
             const clientToken = response.data?.access_token || response.data?.token;
             if (!clientToken) {
@@ -79,16 +74,25 @@ export class BasiqOAuth {
      * Get OAuth redirect URL for Basiq
      */
     async getOAuthRedirectUrl(
+        httpClient: IHttpClient,
+        config: BankConfig['basiq'],
         userId: string,
         action: string = 'connect',
     ): Promise<{ redirectUrl: string; userId: string }> {
         this.logger.debug(`[BasiqOAuth] Getting OAuth redirect URL for Basiq`);
 
         this.logger.debug(`[BasiqOAuth] Fetching client token for OAuth...`);
-        const clientToken = await this.getClientToken(userId);
+        const clientToken = await this.getClientToken(httpClient, config, userId);
         this.logger.log(`[BasiqOAuth] Client token fetched successfully`);
 
-        const redirectUrl = `https://consent.basiq.io/home?userId=${userId}&token=${clientToken}&action=${action}`;
+        const redirectUrl = UrlBuilder.create('https://consent.basiq.io')
+            .path('/home')
+            .queryParams({
+                userId,
+                token: clientToken,
+                action,
+            })
+            .build();
 
         this.logger.log(`[BasiqOAuth] Generated OAuth redirect URL: ${redirectUrl}`);
         this.logger.debug(`[BasiqOAuth] OAuth redirect URL details`, {
@@ -102,4 +106,3 @@ export class BasiqOAuth {
         return { redirectUrl, userId };
     }
 }
-

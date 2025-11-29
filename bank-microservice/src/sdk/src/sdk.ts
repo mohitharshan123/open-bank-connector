@@ -1,4 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AirwallexAccounts } from './features/accounts/airwallex.accounts';
+import { BasiqAccounts } from './features/accounts/basiq.accounts';
+import { AirwallexAuthentication } from './features/authentication/airwallex.authentication';
+import { BasiqAuthentication } from './features/authentication/basiq.authentication';
+import { AirwallexBalances } from './features/balances/airwallex.balances';
+import { BasiqBalances } from './features/balances/basiq.balances';
+import { BasiqJobs } from './features/jobs/basiq.jobs';
+import { BasiqUsers } from './features/users/basiq.users';
 import { AirwallexProvider } from './providers/airwallex.provider';
 import { IProvider } from './providers/base.provider';
 import { BasiqProvider } from './providers/basiq.provider';
@@ -11,13 +19,6 @@ import {
     StandardBalance,
     StandardJob
 } from './shared/types/common';
-import { AirwallexAccounts } from './features/accounts/airwallex.accounts';
-import { AirwallexAuthentication } from './features/authentication/airwallex.authentication';
-import { AirwallexBalances } from './features/balances/airwallex.balances';
-import { BasiqAccounts } from './features/accounts/basiq.accounts';
-import { BasiqAuthentication } from './features/authentication/basiq.authentication';
-import { BasiqBalances } from './features/balances/basiq.balances';
-import { BasiqJobs } from './features/jobs/basiq.jobs';
 
 /**
  * Configuration for initializing a provider
@@ -45,6 +46,7 @@ export class OpenBankSDK {
         private readonly basiqAuthentication: BasiqAuthentication,
         private readonly basiqBalances: BasiqBalances,
         private readonly basiqJobs: BasiqJobs,
+        private readonly basiqUsers: BasiqUsers,
     ) { }
 
     /**
@@ -87,6 +89,7 @@ export class OpenBankSDK {
             this.basiqAccounts,
             this.basiqBalances,
             this.basiqJobs,
+            this.basiqUsers,
         );
         this.registerProvider(Providers.BASIQ, provider);
         return new ProviderInstance(provider, providerLogger);

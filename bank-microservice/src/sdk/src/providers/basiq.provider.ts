@@ -3,10 +3,10 @@ import { BasiqAccounts } from '../features/accounts/basiq.accounts';
 import { BasiqAuthentication } from '../features/authentication/basiq.authentication';
 import { BasiqBalances } from '../features/balances/basiq.balances';
 import { BasiqJobs } from '../features/jobs/basiq.jobs';
-import { HttpRequestBuilder } from '../shared/builders/http-request.builder';
+import { BasiqUsers } from '../features/users/basiq.users';
 import { BASIQ_CONSTANTS } from '../shared/constants/basiq.constants';
 import type { IHttpClient } from '../shared/interfaces/https-client.interface';
-import type { BasiqAuthResponse, BasiqConfig, BasiqCreateUserRequest, BasiqUser } from '../shared/types/basiq';
+import type { BasiqAuthResponse, BasiqConfig } from '../shared/types/basiq';
 import { StandardAccount, StandardBalance, StandardJob } from '../shared/types/common';
 import { BaseProvider } from './base.provider';
 
@@ -27,6 +27,7 @@ export class BasiqProvider extends BaseProvider {
         private readonly basiqAccounts?: BasiqAccounts,
         private readonly basiqBalances?: BasiqBalances,
         private readonly basiqJobs?: BasiqJobs,
+        private readonly basiqUsers?: BasiqUsers,
     ) {
         super(httpClient, config);
         this.logger = logger || new Logger(BasiqProvider.name);
@@ -55,8 +56,13 @@ export class BasiqProvider extends BaseProvider {
         const accessToken = authResponse.access_token;
 
         if (!userId) {
+            if (!this.basiqUsers) {
+                throw new Error('BasiqUsers service not injected');
+            }
             this.logger.log('[BasiqProvider] No userId provided, creating user...');
-            const user = await this.createUserWithToken(
+            const user = await this.basiqUsers.createUser(
+                this.authHttpClient,
+                this.config,
                 {
                     email: `user-${Date.now()}@example.com`,
                     firstName: 'User',
@@ -103,46 +109,5 @@ export class BasiqProvider extends BaseProvider {
             throw new Error('BasiqJobs service not injected');
         }
         return this.basiqJobs.getJobs(this.httpClient, this.config, userId, jobId);
-    }
-
-    /**
-     * Create a user using a bearer token directly (used during authentication)
-     */
-    private async createUserWithToken(userData: BasiqCreateUserRequest, bearerToken: string): Promise<BasiqUser> {
-        this.logger.log(`[BasiqProvider] Creating Basiq user with bearer token`, { userData });
-
-        try {
-            const usertoCreate = {
-                email: userData.email,
-                mobile: userData.mobile,
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-            };
-            const requestConfig = HttpRequestBuilder.post(BASIQ_CONSTANTS.ENDPOINTS.CREATE_USER, usertoCreate)
-                .baseUrl(this.baseUrl)
-                .headers({
-                    'Authorization': `Bearer ${bearerToken}`,
-                    'Content-Type': BASIQ_CONSTANTS.HEADERS.CONTENT_TYPE_JSON,
-                    [BASIQ_CONSTANTS.HEADERS.VERSION]: BASIQ_CONSTANTS.API_VERSION,
-                })
-                .build();
-
-            const response = await this.authHttpClient.request<BasiqUser>(requestConfig);
-
-            const user = response.data;
-            this.logger.log(`[BasiqProvider] Basiq user created successfully`, { userId: user.id });
-            return user;
-        } catch (error: any) {
-            this.logger.error(`[BasiqProvider] Failed to create Basiq user (createUserWithToken)`, {
-                error: error.message,
-                status: error.response?.status,
-                responseData: error.response?.data,
-                requestData: userData,
-            });
-            if (error.response?.data) {
-                this.logger.error(`[BasiqProvider] Basiq API error response:`, JSON.stringify(error.response.data, null, 2));
-            }
-            throw error;
-        }
     }
 }

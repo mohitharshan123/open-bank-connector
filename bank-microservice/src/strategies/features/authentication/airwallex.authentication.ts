@@ -3,7 +3,7 @@ import { ProviderNotInitializedException, ProviderOperationException } from '../
 import { AirwallexAuthResponse, ProviderInstance } from '../../../sdk';
 import { TokenService } from '../../../services/token.service';
 import { ProviderType } from '../../../types/provider.enum';
-import { AirwallexOAuth } from '../../oauth/airwallex.oauth';
+import { AirwallexOAuth } from '../oauth/airwallex.oauth';
 
 @Injectable()
 export class AirwallexAuthentication {
@@ -24,9 +24,8 @@ export class AirwallexAuthentication {
         this.logger.debug(`Authenticating with Airwallex`, { userId, hasOAuthCode: !!oauthCode });
 
         try {
-            // For Airwallex OAuth2: Exchange code for token
             if (oauthCode) {
-                return await oauth.exchangeOAuthCode(oauthCode);
+                throw new Error('OAuth code exchange should be handled by strategy with proper httpClient and config');
             }
 
             this.logger.debug(`Provider instance obtained, calling authenticate directly...`);

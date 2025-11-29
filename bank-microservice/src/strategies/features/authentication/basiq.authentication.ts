@@ -3,7 +3,7 @@ import { ProviderNotInitializedException, ProviderOperationException } from '../
 import { AirwallexAuthResponse, BasiqCreateUserRequest, BasiqUser, ProviderInstance } from '../../../sdk';
 import { TokenService } from '../../../services/token.service';
 import { ProviderType } from '../../../types/provider.enum';
-import { BasiqOAuth } from '../../oauth/basiq.oauth';
+import { BasiqOAuth } from '../oauth/basiq.oauth';
 
 @Injectable()
 export class BasiqAuthentication {
@@ -69,14 +69,7 @@ export class BasiqAuthentication {
                 `Successfully authenticated with Basiq and stored token with userId: ${userId}`,
             );
 
-            this.logger.debug(`[BasiqAuthentication] Fetching client token for OAuth...`);
-            const { redirectUrl } = await oauth.getOAuthRedirectUrl(userId);
-            this.logger.log(`[BasiqAuthentication] Client token fetched successfully`);
-
-            return {
-                ...authResponse,
-                redirectUrl,
-            };
+            return authResponse;
         } catch (error) {
             if (error instanceof ProviderNotInitializedException) {
                 throw error;
