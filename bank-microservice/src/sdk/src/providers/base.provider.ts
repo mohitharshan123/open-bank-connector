@@ -12,7 +12,7 @@ export interface IProvider {
     /**
      * Authenticate with the provider
      */
-    authenticate(): Promise<any>;
+    authenticate(userId?: string): Promise<any>;
     /**
      * Get account details (returns array of accounts)
      */
@@ -45,7 +45,7 @@ export abstract class BaseProvider implements IProvider {
         this.httpClient = httpClient;
         this.config = config;
     }
-    abstract authenticate(): Promise<any>;
+    abstract authenticate(userId?: string): Promise<any>;
     abstract getAccount(userId?: string): Promise<StandardAccount[]>;
     abstract getBalances(userId?: string): Promise<StandardBalance[]>;
     abstract getJobs(userId?: string, jobId?: string): Promise<StandardJob[]>;

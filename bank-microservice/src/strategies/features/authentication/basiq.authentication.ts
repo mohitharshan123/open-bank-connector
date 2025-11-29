@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProviderNotInitializedException, ProviderOperationException } from '../../../exceptions/provider.exception';
-import { AirwallexAuthResponse, BasiqCreateUserRequest, BasiqUser, ProviderInstance } from '../../../sdk';
+import { AirwallexAuthResponse, ProviderInstance } from '../../../sdk';
 import { TokenService } from '../../../services/token.service';
 import { ProviderType } from '../../../types/provider.enum';
 import { BasiqOAuth } from '../oauth/basiq.oauth';
@@ -26,7 +26,7 @@ export class BasiqAuthentication {
             this.logger.debug(`[BasiqAuthentication] Getting provider instance...`);
             this.logger.debug(`[BasiqAuthentication] Provider instance obtained, calling authenticate to get bearer token...`);
 
-            const authResponse = await (providerInstance as any).authenticate(userId);
+            const authResponse = await providerInstance.authenticate(userId);
             this.logger.debug(`[BasiqAuthentication] Authentication response received`);
 
             const expiresIn = authResponse.expires_in || 1800;
@@ -40,33 +40,21 @@ export class BasiqAuthentication {
                 throw new Error('Token not found in auth response');
             }
 
+            const finalUserId = (authResponse as any).userId || userId;
+            if (!finalUserId) {
+                throw new Error('userId is required but not found in auth response');
+            }
+
             this.logger.debug(`[BasiqAuthentication] Storing bearer token`, {
                 tokenLength: token.length,
                 tokenPreview: `${token.substring(0, 30)}...`,
                 expiresIn,
+                userId: finalUserId,
             });
 
-            if ((authResponse as any).userId) {
-                userId = (authResponse as any).userId;
-                this.logger.log(`Basiq userId extracted from auth response: ${userId}`);
-            }
-
-            if (!userId) {
-                this.logger.log('[BasiqAuthentication] Creating user...');
-                const userData: BasiqCreateUserRequest = {
-                    email: `user-${Date.now()}@example.com`,
-                    firstName: 'User',
-                    lastName: `${Date.now()}`,
-                };
-                this.logger.debug(`[BasiqAuthentication] User data for creation`, { userData });
-                const user = await this.createUser(providerInstance, userData);
-                userId = user.id;
-                this.logger.log(`[BasiqAuthentication] Created user ${userId}`);
-            }
-
-            await this.tokenService.storeToken(ProviderType.BASIQ, companyId, token, expiresIn, userId);
+            await this.tokenService.storeToken(ProviderType.BASIQ, companyId, token, expiresIn, finalUserId);
             this.logger.log(
-                `Successfully authenticated with Basiq and stored token with userId: ${userId}`,
+                `Successfully authenticated with Basiq and stored token with userId: ${finalUserId}`,
             );
 
             return authResponse;
@@ -80,32 +68,5 @@ export class BasiqAuthentication {
         }
     }
 
-    /**
-     * Create a Basiq user
-     */
-    private async createUser(providerInstance: ProviderInstance, userData: BasiqCreateUserRequest): Promise<BasiqUser> {
-        this.logger.log('[BasiqAuthentication] Creating Basiq user', { userData });
-
-        try {
-            if (typeof (providerInstance as any).createUser !== 'function') {
-                throw new Error('Basiq provider does not support createUser');
-            }
-
-            const user = await (providerInstance as any).createUser(userData);
-            this.logger.log(`Successfully created Basiq user: ${user.id}`);
-            return user;
-        } catch (error: any) {
-            this.logger.error(
-                `[BasiqAuthentication] Failed to create Basiq user: ${error?.message || 'Unknown error'}`,
-                error?.stack,
-            );
-
-            if (error instanceof ProviderNotInitializedException) {
-                throw error;
-            }
-
-            throw new ProviderOperationException(ProviderType.BASIQ, 'create user', error);
-        }
-    }
 }
 

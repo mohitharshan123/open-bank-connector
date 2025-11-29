@@ -39,7 +39,7 @@ export class AirwallexProvider extends BaseProvider {
     /**
      * Authenticate with Airwallex API to get bearer token
      */
-    async authenticate(): Promise<AirwallexAuthResponse> {
+    async authenticate(userId?: string): Promise<AirwallexAuthResponse> {
         if (!this.airwallexAuthentication) {
             throw new Error('AirwallexAuthentication service not injected');
         }

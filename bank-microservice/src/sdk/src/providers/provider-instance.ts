@@ -20,11 +20,11 @@ export class ProviderInstance {
      * Authenticate with the provider (if supported)
      * This method delegates to the underlying provider's authenticate method
      */
-    async authenticate(): Promise<any> {
+    async authenticate(userId?: string): Promise<any> {
         const providerName = this.provider.getProviderName();
-        this.logger.debug(`[ProviderInstance] authenticate() called for provider: ${providerName}`);
+        this.logger.debug(`[ProviderInstance] authenticate() called for provider: ${providerName}`, { userId });
 
-        return this.provider.authenticate();
+        return this.provider.authenticate(userId);
     }
 
     /**

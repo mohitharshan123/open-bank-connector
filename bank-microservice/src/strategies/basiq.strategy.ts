@@ -5,7 +5,6 @@ import { BankConfig } from '../config/bank.config';
 import { ProviderNotInitializedException } from '../exceptions/provider.exception';
 import {
     AirwallexAuthResponse,
-    BasiqCreateUserRequest,
     OpenBankSDK,
     StandardAccount,
     StandardBalance,
@@ -116,17 +115,13 @@ export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {
         }
 
         if (!userId) {
-            const providerInstance = await this.getProvider(companyId);
-            const userData: BasiqCreateUserRequest = {
-                email: `user-${Date.now()}@example.com`,
-            };
-            if (typeof (providerInstance as any).createUser === 'function') {
-                const user = await (providerInstance as any).createUser(userData);
-                userId = user.id;
-                this.logger.log(`[BasiqStrategy] Created user ${userId} for OAuth`);
-            } else {
-                throw new Error('Basiq provider does not support createUser');
+            this.logger.log('[BasiqStrategy] No userId provided, authenticating to create user...');
+            const authResponse = await this.authenticate(companyId);
+            userId = (authResponse as any).userId;
+            if (!userId) {
+                throw new Error('Failed to get userId from authentication');
             }
+            this.logger.log(`[BasiqStrategy] Got userId ${userId} from authentication`);
         }
 
         const { redirectUrl } = await this.basiqOAuth.getOAuthRedirectUrl(authHttpClient, config, userId!, action);
