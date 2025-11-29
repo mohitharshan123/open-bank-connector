@@ -20,22 +20,22 @@ export class BasiqJobs {
         this.logger.debug(`Getting jobs for Basiq`, { jobId });
 
         try {
-            // Note: companyId should be passed from strategy
             const tokenDoc = await this.tokenService.getActiveToken(ProviderType.BASIQ, this.companyId);
+
             if (!tokenDoc || !isBasiqToken(tokenDoc)) {
-                throw new Error('Basiq token not found or invalid. Please authenticate first.');
+                throw new ProviderOperationException(ProviderType.BASIQ, 'get jobs', new Error('Token validation failed'));
             }
 
             const userId = tokenDoc.userId;
             if (!userId) {
-                throw new Error('Basiq userId not found. Please authenticate first to create a user.');
+                throw new ProviderOperationException(ProviderType.BASIQ, 'get jobs', new Error('User ID not found in token'));
             }
 
             const result = await this.providerInstance.getJobs(userId, jobId);
             this.logger.log(`Successfully retrieved ${result.length} job(s) from Basiq`);
             return result;
         } catch (error: any) {
-            if (error instanceof ProviderNotInitializedException) {
+            if (error instanceof ProviderNotInitializedException || error instanceof ProviderOperationException) {
                 throw error;
             }
 

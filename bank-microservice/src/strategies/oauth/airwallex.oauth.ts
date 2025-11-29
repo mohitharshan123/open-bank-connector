@@ -61,8 +61,6 @@ export class AirwallexOAuth {
 
         const redirectUrl = `${oauthBaseUrl}/app/login-auth?${params.toString()}`;
 
-        // Store code_verifier with state for later use (you might want to store this in Redis/DB)
-        // For now, we'll return it so the frontend can store it
         return { redirectUrl, state: oauthState, codeVerifier };
     }
 

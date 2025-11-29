@@ -36,3 +36,20 @@ export class ProviderOperationException extends HttpException {
     }
 }
 
+export class TokenNotFoundException extends HttpException {
+    constructor(provider: string, companyId: string) {
+        super(
+            `${provider.charAt(0).toUpperCase() + provider.slice(1)} token not found for company '${companyId}'. Please authenticate first.`,
+            HttpStatus.UNAUTHORIZED,
+        );
+    }
+}
+
+export class InvalidTokenException extends HttpException {
+    constructor(provider: string, companyId: string, reason?: string) {
+        super(
+            `Invalid ${provider} token for company '${companyId}'. ${reason || 'Please authenticate again.'}`,
+            HttpStatus.UNAUTHORIZED,
+        );
+    }
+}

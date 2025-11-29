@@ -1,7 +1,8 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Logger, UseGuards } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { BankService } from './bank.service';
 import { ProviderType, isProviderType } from './types/provider.enum';
+import { TokenAuthGuard } from './guards/token-auth.guard';
 
 export interface GetAccountCommand {
     provider: ProviderType | string;
@@ -35,6 +36,12 @@ export interface OAuthRedirectCommand {
     state?: string;
 }
 
+export interface GetJobsCommand {
+    provider: ProviderType | string;
+    companyId: string;
+    jobId?: string;
+}
+
 export interface ConnectionStatusCommand {
     provider: ProviderType | string;
     companyId: string;
@@ -56,6 +63,7 @@ export class BankController {
     }
 
     @MessagePattern('bank.getAccount')
+    @UseGuards(TokenAuthGuard)
     async getAccount(@Payload() data: GetAccountCommand) {
         this.logger.debug('Received getAccount command', {
             provider: data.provider,
@@ -67,6 +75,7 @@ export class BankController {
     }
 
     @MessagePattern('bank.getBalances')
+    @UseGuards(TokenAuthGuard)
     async getBalances(@Payload() data: GetBalancesCommand) {
         this.logger.debug('Received getBalances command', {
             provider: data.provider,
@@ -74,6 +83,18 @@ export class BankController {
         });
         const provider = this.validateProvider(data.provider);
         return this.bankService.getBalances(provider, data.companyId);
+    }
+
+    @MessagePattern('bank.getJobs')
+    @UseGuards(TokenAuthGuard)
+    async getJobs(@Payload() data: GetJobsCommand) {
+        this.logger.debug('Received getJobs command', {
+            provider: data.provider,
+            companyId: data.companyId,
+            jobId: data.jobId,
+        });
+        const provider = this.validateProvider(data.provider);
+        return this.bankService.getJobs(provider, data.companyId, data.jobId);
     }
 
     @MessagePattern('bank.authenticate')

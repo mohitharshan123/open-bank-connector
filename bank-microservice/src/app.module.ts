@@ -15,6 +15,7 @@ import { TokenService } from './services/token.service';
 import { AirwallexStrategy } from './strategies/airwallex.strategy';
 import { BasiqStrategy } from './strategies/basiq.strategy';
 import { ProviderStrategyFactory } from './strategies/provider-strategy.factory';
+import { TokenAuthGuard } from './guards/token-auth.guard';
 
 @Module({
   imports: [
@@ -34,12 +35,13 @@ import { ProviderStrategyFactory } from './strategies/provider-strategy.factory'
       inject: [ConfigService],
     }),
     MongooseModule.forFeature([{ name: Token.name, schema: TokenSchema }]),
-    SdkModule, 
+    SdkModule,
   ],
   controllers: [BankController],
   providers: [
     BankService,
     TokenService,
+    TokenAuthGuard,
     {
       provide: TokenRepository,
       useClass: MongoTokenRepository,

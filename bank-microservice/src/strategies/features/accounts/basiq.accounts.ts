@@ -21,29 +21,22 @@ export class BasiqAccounts {
 
         try {
             const tokenDoc = await this.tokenService.getActiveToken(ProviderType.BASIQ, this.companyId);
-            if (!tokenDoc || !isBasiqToken(tokenDoc)) {
-                throw new Error('Basiq token not found or invalid. Please authenticate first.');
-            }
 
-            this.logger.debug(`[BasiqAccounts] Retrieved token doc for getAccount`, {
-                hasTokenDoc: !!tokenDoc,
-                userId: tokenDoc.userId,
-                tokenDocKeys: Object.keys(tokenDoc),
-            });
+            if (!tokenDoc || !isBasiqToken(tokenDoc)) {
+                throw new ProviderOperationException(ProviderType.BASIQ, 'get account', new Error('Token validation failed'));
+            }
 
             const userId = tokenDoc.userId;
             if (!userId) {
-                this.logger.error(`[BasiqAccounts] userId not found in token doc`, {
-                    tokenDoc,
-                });
-                throw new Error('Basiq userId not found. Please authenticate first to create a user.');
+                this.logger.error(`[BasiqAccounts] userId not found in token doc`);
+                throw new ProviderOperationException(ProviderType.BASIQ, 'get account', new Error('User ID not found in token'));
             }
 
             const result = await this.providerInstance.getAccount(userId);
             this.logger.log(`Successfully retrieved ${result.length} account(s) from Basiq`);
             return result;
         } catch (error) {
-            if (error instanceof ProviderNotInitializedException) {
+            if (error instanceof ProviderNotInitializedException || error instanceof ProviderOperationException) {
                 throw error;
             }
 

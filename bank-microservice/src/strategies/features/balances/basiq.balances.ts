@@ -21,19 +21,21 @@ export class BasiqBalances {
 
         try {
             const tokenDoc = await this.tokenService.getActiveToken(ProviderType.BASIQ, this.companyId);
+
             if (!tokenDoc || !isBasiqToken(tokenDoc)) {
-                throw new Error('Basiq token not found or invalid. Please authenticate first.');
+                throw new ProviderOperationException(ProviderType.BASIQ, 'get balances', new Error('Token validation failed'));
             }
+
             const userId = tokenDoc.userId;
             if (!userId) {
-                throw new Error('Basiq userId not found. Please create a user first.');
+                throw new ProviderOperationException(ProviderType.BASIQ, 'get balances', new Error('User ID not found in token'));
             }
 
             const result = await this.providerInstance.getBalances(userId);
             this.logger.log(`Successfully retrieved ${result.length} balances from Basiq`);
             return result;
         } catch (error) {
-            if (error instanceof ProviderNotInitializedException) {
+            if (error instanceof ProviderNotInitializedException || error instanceof ProviderOperationException) {
                 throw error;
             }
 
