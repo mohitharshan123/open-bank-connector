@@ -1100,3 +1100,6 @@ All operations are scoped by `companyId`:
 https://github.com/user-attachments/assets/b3db140c-74d4-4d47-a229-2541ba98bb3d
 
 
+https://github.com/user-attachments/assets/6c8c784c-a4fb-4790-b59b-33cc2baf754b
+
+
