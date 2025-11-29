@@ -11,23 +11,25 @@ import { BaseProvider } from './base.provider';
 export class AirwallexProvider extends BaseProvider {
     private readonly logger: Logger;
     private readonly authHttpClient: IHttpClient;
+    protected readonly config: AirwallexConfig;
 
-    private readonly authentication: AirwallexAuthentication;
-    private readonly accounts: AirwallexAccounts;
-    private readonly balances: AirwallexBalances;
-
-    constructor(httpClient: IHttpClient, config: AirwallexConfig, logger?: Logger, authHttpClient?: IHttpClient) {
+    constructor(
+        httpClient: IHttpClient,
+        config: AirwallexConfig,
+        logger?: Logger,
+        authHttpClient?: IHttpClient,
+        private readonly airwallexAuthentication?: AirwallexAuthentication,
+        private readonly airwallexAccounts?: AirwallexAccounts,
+        private readonly airwallexBalances?: AirwallexBalances,
+    ) {
         super(httpClient, config);
         this.logger = logger || new Logger(AirwallexProvider.name);
         this.authHttpClient = authHttpClient || httpClient;
+        this.config = config;
 
         if (!config.apiKey || !config.clientId) {
             throw new Error('Airwallex apiKey and clientId are required');
         }
-
-        this.authentication = new AirwallexAuthentication(this.authHttpClient, config, this.logger);
-        this.accounts = new AirwallexAccounts(this.httpClient, config, this.logger);
-        this.balances = new AirwallexBalances(this.httpClient, config, this.logger);
     }
 
     getProviderName(): string {
@@ -38,21 +40,30 @@ export class AirwallexProvider extends BaseProvider {
      * Authenticate with Airwallex API to get bearer token
      */
     async authenticate(): Promise<AirwallexAuthResponse> {
-        return this.authentication.authenticate();
+        if (!this.airwallexAuthentication) {
+            throw new Error('AirwallexAuthentication service not injected');
+        }
+        return this.airwallexAuthentication.authenticate(this.authHttpClient, this.config);
     }
 
     /**
      * Get account details
      */
     async getAccount(): Promise<StandardAccount[]> {
-        return this.accounts.getAccounts();
+        if (!this.airwallexAccounts) {
+            throw new Error('AirwallexAccounts service not injected');
+        }
+        return this.airwallexAccounts.getAccounts(this.httpClient, this.config);
     }
 
     /**
      * Get account balances
      */
     async getBalances(): Promise<StandardBalance[]> {
-        return this.balances.getBalances();
+        if (!this.airwallexBalances) {
+            throw new Error('AirwallexBalances service not injected');
+        }
+        return this.airwallexBalances.getBalances(this.httpClient, this.config);
     }
 
     /**

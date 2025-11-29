@@ -1,6 +1,13 @@
 import { Module, Global } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { OpenBankSDK } from '../sdk/src/sdk';
+import { AirwallexAccounts } from '../sdk/src/features/accounts/airwallex.accounts';
+import { AirwallexAuthentication } from '../sdk/src/features/authentication/airwallex.authentication';
+import { AirwallexBalances } from '../sdk/src/features/balances/airwallex.balances';
+import { BasiqAccounts } from '../sdk/src/features/accounts/basiq.accounts';
+import { BasiqAuthentication } from '../sdk/src/features/authentication/basiq.authentication';
+import { BasiqBalances } from '../sdk/src/features/balances/basiq.balances';
+import { BasiqJobs } from '../sdk/src/features/jobs/basiq.jobs';
 
 /**
  * NestJS module for the Open Bank SDK
@@ -12,10 +19,26 @@ import { OpenBankSDK } from '../sdk/src/sdk';
 @Module({
     imports: [HttpModule],
     providers: [
-        OpenBankSDK
+        OpenBankSDK,
+        // SDK Feature services (injectable)
+        AirwallexAccounts,
+        AirwallexAuthentication,
+        AirwallexBalances,
+        BasiqAccounts,
+        BasiqAuthentication,
+        BasiqBalances,
+        BasiqJobs,
     ],
     exports: [
         OpenBankSDK,
+        // Export feature services so they can be injected in providers
+        AirwallexAccounts,
+        AirwallexAuthentication,
+        AirwallexBalances,
+        BasiqAccounts,
+        BasiqAuthentication,
+        BasiqBalances,
+        BasiqJobs,
     ],
 })
 export class SdkModule { }

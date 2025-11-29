@@ -11,6 +11,13 @@ import {
     StandardBalance,
     StandardJob
 } from './shared/types/common';
+import { AirwallexAccounts } from './features/accounts/airwallex.accounts';
+import { AirwallexAuthentication } from './features/authentication/airwallex.authentication';
+import { AirwallexBalances } from './features/balances/airwallex.balances';
+import { BasiqAccounts } from './features/accounts/basiq.accounts';
+import { BasiqAuthentication } from './features/authentication/basiq.authentication';
+import { BasiqBalances } from './features/balances/basiq.balances';
+import { BasiqJobs } from './features/jobs/basiq.jobs';
 
 /**
  * Configuration for initializing a provider
@@ -30,6 +37,16 @@ export class OpenBankSDK {
     private readonly logger = new Logger(OpenBankSDK.name);
     private providers: Map<Providers, IProvider> = new Map();
 
+    constructor(
+        private readonly airwallexAccounts: AirwallexAccounts,
+        private readonly airwallexAuthentication: AirwallexAuthentication,
+        private readonly airwallexBalances: AirwallexBalances,
+        private readonly basiqAccounts: BasiqAccounts,
+        private readonly basiqAuthentication: BasiqAuthentication,
+        private readonly basiqBalances: BasiqBalances,
+        private readonly basiqJobs: BasiqJobs,
+    ) { }
+
     /**
      * Register a provider with the SDK
      */
@@ -42,7 +59,15 @@ export class OpenBankSDK {
      * Usage: const airwallex = sdk.useAirwallex(httpClient, config, logger, authHttpClient); await airwallex.getAccount();
      */
     useAirwallex(httpClient: IHttpClient, config: AirwallexConfig, logger?: Logger, authHttpClient?: IHttpClient): ProviderInstance {
-        const provider = new AirwallexProvider(httpClient, config, logger, authHttpClient);
+        const provider = new AirwallexProvider(
+            httpClient,
+            config,
+            logger,
+            authHttpClient,
+            this.airwallexAuthentication,
+            this.airwallexAccounts,
+            this.airwallexBalances,
+        );
         this.registerProvider(Providers.AIRWALLEX, provider);
         return new ProviderInstance(provider, logger || this.logger);
     }
@@ -53,7 +78,16 @@ export class OpenBankSDK {
      */
     useBasiq(httpClient: IHttpClient, config: BasiqConfig, logger?: Logger, authHttpClient?: IHttpClient): ProviderInstance {
         const providerLogger = logger || this.logger;
-        const provider = new BasiqProvider(httpClient, config, providerLogger, authHttpClient);
+        const provider = new BasiqProvider(
+            httpClient,
+            config,
+            providerLogger,
+            authHttpClient,
+            this.basiqAuthentication,
+            this.basiqAccounts,
+            this.basiqBalances,
+            this.basiqJobs,
+        );
         this.registerProvider(Providers.BASIQ, provider);
         return new ProviderInstance(provider, providerLogger);
     }

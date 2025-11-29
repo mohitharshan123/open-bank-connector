@@ -1,19 +1,16 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { IHttpClient } from '../../shared/interfaces/https-client.interface';
 import { BASIQ_CONSTANTS } from '../../shared/constants/basiq.constants';
 import type { BasiqAuthResponse, BasiqConfig } from '../../shared/types/basiq';
 
+@Injectable()
 export class BasiqAuthentication {
-    constructor(
-        private readonly httpClient: IHttpClient,
-        private readonly config: BasiqConfig,
-        private readonly logger: Logger
-    ) { }
+    private readonly logger = new Logger(BasiqAuthentication.name);
 
     /**
      * Authenticate with Basiq API to get bearer token
      */
-    async authenticate(userId?: string): Promise<BasiqAuthResponse & { userId?: string }> {
+    async authenticate(httpClient: IHttpClient, config: BasiqConfig, userId?: string): Promise<BasiqAuthResponse & { userId?: string }> {
         this.logger.log('[BasiqAuthentication] Starting authentication', { userId });
 
         try {
@@ -23,10 +20,10 @@ export class BasiqAuthentication {
                 formData.append('userId', userId);
             }
 
-            const baseUrl = this.config.baseUrl || BASIQ_CONSTANTS.BASE_URL;
-            const apiKey = (this.config.apiKey || '').trim();
+            const baseUrl = config.baseUrl || BASIQ_CONSTANTS.BASE_URL;
+            const apiKey = (config.apiKey || '').trim();
 
-            const response = await this.httpClient.post<BasiqAuthResponse>(
+            const response = await httpClient.post<BasiqAuthResponse>(
                 BASIQ_CONSTANTS.ENDPOINTS.AUTHENTICATE,
                 formData.toString(),
                 {
