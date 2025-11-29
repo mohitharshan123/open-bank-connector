@@ -10,7 +10,7 @@ export interface ITransformer<TProviderAccount, TProviderBalance> {
     /**
      * Transform provider-specific account to standard format
      */
-    transformAccount(account: TProviderAccount): StandardAccount;
+    transformAccounts(accounts: TProviderAccount): StandardAccount[];
 
     /**
      * Transform provider-specific balances array to standard format
@@ -31,7 +31,7 @@ export abstract class BaseTransformer<
         this.providerName = providerName;
     }
 
-    abstract transformAccount(account: TProviderAccount): StandardAccount;
+    abstract transformAccounts(accounts: TProviderAccount): StandardAccount[];
     abstract transformBalances(balances: TProviderBalance[]): StandardBalance[];
 
 }

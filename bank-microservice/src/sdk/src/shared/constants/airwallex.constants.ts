@@ -4,7 +4,7 @@ export const AIRWALLEX_CONSTANTS = {
     PROVIDER_NAME: 'airwallex',
     ENDPOINTS: {
         AUTHENTICATE: '/api/v1/authentication/login',
-        GET_ACCOUNT: '/api/v1/account',
+        GET_ACCOUNTS: '/api/v1/account',
         GET_BALANCES: '/api/v1/balances/current',
     },
     HEADERS: {

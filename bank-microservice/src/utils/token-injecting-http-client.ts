@@ -15,6 +15,7 @@ export class TokenInjectingHttpClient implements IHttpClient {
         private readonly baseClient: IHttpClient,
         private readonly providerType: ProviderType,
         private readonly tokenService: TokenService,
+        private readonly companyId: string,
         private readonly refreshCallback?: () => Promise<any>,
     ) {
         this.config = this.getProviderConfig(providerType);
@@ -96,11 +97,12 @@ export class TokenInjectingHttpClient implements IHttpClient {
                 try {
                     token = await this.tokenService.getValidToken(
                         this.providerType,
+                        this.companyId,
                         this.refreshCallback,
                     );
                 } catch (refreshError) {
                     console.error(
-                        `Failed to refresh token for ${this.providerType}: ${refreshError.message}`,
+                        `Failed to refresh token for ${this.providerType} (company: ${this.companyId}): ${refreshError.message}`,
                         refreshError.stack,
                     );
                     throw refreshError;
@@ -111,13 +113,13 @@ export class TokenInjectingHttpClient implements IHttpClient {
                 this.config.injectHeader(config, token);
             }
         } catch (error) {
-            console.error(`Failed to inject token for ${this.providerType}:`, error);
+            console.error(`Failed to inject token for ${this.providerType} (company: ${this.companyId}):`, error);
         }
     }
 
     private async getTokenForProvider(): Promise<string | null> {
         try {
-            const tokenDoc = await this.tokenService.getActiveToken(this.providerType);
+            const tokenDoc = await this.tokenService.getActiveToken(this.providerType, this.companyId);
 
             if (!tokenDoc) {
                 return null;

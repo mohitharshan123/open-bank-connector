@@ -18,9 +18,6 @@ export interface AirwallexTokenMetadata {
     collection: 'tokens',
 })
 export class BaseToken {
-    // Note: 'provider' field is automatically managed by Mongoose discriminator
-    // Do NOT define it with @Prop() - Mongoose will add it automatically
-
     @Prop({ required: true })
     token: string;
 
@@ -29,6 +26,9 @@ export class BaseToken {
 
     @Prop({ default: false })
     isActive: boolean;
+
+    @Prop({ required: true, index: true })
+    companyId: string;
 
     /**
      * Provider-specific metadata stored as a flexible object
@@ -45,7 +45,8 @@ export class BaseToken {
 
 export const BaseTokenSchema = SchemaFactory.createForClass(BaseToken);
 
-BaseTokenSchema.index({ provider: 1, isActive: 1 });
+BaseTokenSchema.index({ provider: 1, companyId: 1, isActive: 1 });
+BaseTokenSchema.index({ companyId: 1, provider: 1 });
 BaseTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 /**
@@ -60,10 +61,6 @@ export class AirwallexToken extends BaseToken {
 
 export const AirwallexTokenSchema = SchemaFactory.createForClass(AirwallexToken);
 
-/**
- * Basiq token schema - requires userId
- * The 'provider' field is automatically set to ProviderType.BASIQ by Mongoose discriminator
- */
 @Schema()
 export class BasiqToken extends BaseToken {
     @Prop({ required: true })

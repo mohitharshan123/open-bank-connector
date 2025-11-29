@@ -19,13 +19,13 @@ export class AirwallexTransformer extends BaseTransformer<
         super('airwallex');
     }
 
-    transformAccount(account: AirwallexAccount): StandardAccount {
+    transformAccounts(account: AirwallexAccount): StandardAccount[] {
         const accountName = account.nickname ||
             account.account_details?.business_details?.business_name_english ||
             account.account_details?.business_details?.business_name ||
             '';
 
-        return {
+        return [{
             id: account.id,
             accountNumber: account.id,
             accountName,
@@ -33,7 +33,7 @@ export class AirwallexTransformer extends BaseTransformer<
             currency: '',
             type: account.account_details?.legal_entity_type?.toLowerCase() || 'unknown',
             provider: this.providerName,
-        };
+        }];
     }
 
     transformBalances(balances: AirwallexAccountBalance[]): StandardBalance[] {

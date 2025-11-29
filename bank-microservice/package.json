@@ -27,9 +27,12 @@
     "@nestjs/microservices": "^11.1.9",
     "@nestjs/mongoose": "^11.0.3",
     "@nestjs/platform-express": "^11.0.1",
+    "api": "^6.1.3",
     "axios": "^1.13.2",
     "ioredis": "^5.8.2",
+    "json-schema-to-ts": "^2.8.0-beta.0",
     "mongoose": "^8.20.0",
+    "oas": "^20.11.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },

@@ -3,7 +3,8 @@ import { IProvider } from './base.provider';
 import {
     StandardAccount,
     StandardBalance,
-} from '../types/common';
+    StandardJob,
+} from '../shared/types/common';
 
 /**
  * Provider-specific instance wrapper that exposes methods without requiring provider name
@@ -27,9 +28,9 @@ export class ProviderInstance {
     }
 
     /**
-     * Get account details
+     * Get account details (returns array of accounts)
      */
-    async getAccount(userId?: string): Promise<StandardAccount> {
+    async getAccount(userId?: string): Promise<StandardAccount[]> {
         return this.provider.getAccount(userId);
     }
 
@@ -38,6 +39,13 @@ export class ProviderInstance {
      */
     async getBalances(userId?: string): Promise<StandardBalance[]> {
         return this.provider.getBalances(userId);
+    }
+
+    /**
+     * Get jobs (Basiq-specific, returns empty array for other providers)
+     */
+    async getJobs(userId?: string, jobId?: string): Promise<StandardJob[]> {
+        return this.provider.getJobs(userId, jobId);
     }
 
     /**

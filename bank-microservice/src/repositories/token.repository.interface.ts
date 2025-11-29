@@ -2,10 +2,10 @@ import { TokenDocument } from '../schemas/token.schema';
 import { ProviderType } from '../types/provider.enum';
 
 export interface ITokenRepository {
-    findActiveByProvider(provider: ProviderType): Promise<TokenDocument | null>;
+    findActiveByProvider(provider: ProviderType, companyId: string): Promise<TokenDocument | null>;
     create(tokenData: Partial<TokenDocument>): Promise<TokenDocument>;
-    deactivateByProvider(provider: ProviderType): Promise<number>;
-    deleteByProvider(provider: ProviderType): Promise<number>;
+    deactivateByProvider(provider: ProviderType, companyId: string): Promise<number>;
+    deleteByProvider(provider: ProviderType, companyId: string): Promise<number>;
 }
 
 export const TokenRepository = Symbol('TokenRepository');

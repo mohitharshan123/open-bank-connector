@@ -1,76 +1,45 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
-import * as crypto from 'crypto';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { BankConfig } from '../config/bank.config';
+import { ProviderNotInitializedException } from '../exceptions/provider.exception';
 import {
     AirwallexAuthResponse,
-    IHttpClient,
-    ProviderInstance,
+    OpenBankSDK,
     StandardAccount,
     StandardBalance,
+    StandardJob,
 } from '../sdk';
-import { BankConfig } from '../config/bank.config';
-import { ProviderType } from '../types/provider.enum';
-import { IProviderStrategy } from './provider-strategy.interface';
-import {
-    ProviderNotInitializedException,
-    ProviderOperationException,
-} from '../exceptions/provider.exception';
 import { TokenService } from '../services/token.service';
-import { OpenBankSDK } from '../sdk';
-import { NestJsHttpAdapter } from '../utils/nestjs-http-adapter';
-import { TokenInjectingHttpClient } from '../utils/token-injecting-http-client';
+import { ProviderType } from '../types/provider.enum';
+import { BaseStrategy } from './base.strategy';
+import { AirwallexAccounts } from './features/accounts/airwallex.accounts';
+import { AirwallexAuthentication } from './features/authentication/airwallex.authentication';
+import { AirwallexBalances } from './features/balances/airwallex.balances';
+import { AirwallexOAuth } from './oauth/airwallex.oauth';
+import { IProviderStrategy } from './provider-strategy.interface';
 
 @Injectable()
-export class AirwallexStrategy implements IProviderStrategy {
-    private readonly logger = new Logger(AirwallexStrategy.name);
-    private providerInstance: ProviderInstance | null = null;
-    private initializationPromise: Promise<void> | null = null;
+export class AirwallexStrategy extends BaseStrategy implements IProviderStrategy {
+    private oauthInstances: Map<string, AirwallexOAuth> = new Map();
+    private authenticationInstances: Map<string, AirwallexAuthentication> = new Map();
+    private accountsInstances: Map<string, AirwallexAccounts> = new Map();
+    private balancesInstances: Map<string, AirwallexBalances> = new Map();
 
     constructor(
-        private readonly configService: ConfigService,
-        private readonly tokenService: TokenService,
-        private readonly httpService: HttpService,
-        private readonly sdk: OpenBankSDK,
-    ) { }
+        configService: ConfigService,
+        tokenService: TokenService,
+        httpService: HttpService,
+        sdk: OpenBankSDK,
+    ) {
+        super(configService, tokenService, httpService, sdk, AirwallexStrategy.name);
+    }
 
     getProviderType(): ProviderType {
         return ProviderType.AIRWALLEX;
     }
 
-    private createHttpClient(): IHttpClient {
-        const baseClient = new NestJsHttpAdapter(this.httpService);
-        return new TokenInjectingHttpClient(
-            baseClient,
-            ProviderType.AIRWALLEX,
-            this.tokenService,
-            () => this.refreshAuthToken(),
-        );
-    }
-
-    private createAuthHttpClient(): IHttpClient {
-        return new NestJsHttpAdapter(this.httpService);
-    }
-
-    private async initialize(): Promise<void> {
-        if (this.providerInstance) {
-            return;
-        }
-
-        if (this.initializationPromise) {
-            await this.initializationPromise;
-            return;
-        }
-
-        this.initializationPromise = this.doInitialize();
-        try {
-            await this.initializationPromise;
-        } finally {
-            this.initializationPromise = null;
-        }
-    }
-
-    private async doInitialize(): Promise<void> {
+    protected async doInitialize(companyId: string): Promise<void> {
         const config = this.configService.get<BankConfig['airwallex']>('bank.airwallex');
 
         if (!config?.apiKey || !config?.clientId) {
@@ -79,10 +48,10 @@ export class AirwallexStrategy implements IProviderStrategy {
             );
         }
 
-        const httpClient = this.createHttpClient();
+        const httpClient = this.createHttpClient(companyId);
         const authHttpClient = this.createAuthHttpClient();
 
-        this.providerInstance = this.sdk.useAirwallex(
+        const providerInstance = this.sdk.useAirwallex(
             httpClient,
             {
                 apiKey: config.apiKey,
@@ -93,214 +62,73 @@ export class AirwallexStrategy implements IProviderStrategy {
             authHttpClient,
         );
 
-        this.logger.log('✓ Airwallex provider initialized successfully');
+        this.providerInstances.set(companyId, providerInstance);
+
+        const oauth = new AirwallexOAuth(authHttpClient, this.tokenService, config, companyId, this.logger);
+        const authentication = new AirwallexAuthentication(
+            providerInstance,
+            this.tokenService,
+            oauth,
+            companyId,
+            this.logger,
+        );
+        const accounts = new AirwallexAccounts(providerInstance, this.logger);
+        const balances = new AirwallexBalances(providerInstance, this.logger);
+
+        this.oauthInstances.set(companyId, oauth);
+        this.authenticationInstances.set(companyId, authentication);
+        this.accountsInstances.set(companyId, accounts);
+        this.balancesInstances.set(companyId, balances);
+
+        this.logger.log(`✓ Airwallex provider initialized successfully for company: ${companyId}`);
     }
 
-    private async getProvider(): Promise<ProviderInstance> {
-        await this.initialize();
-        if (!this.providerInstance) {
+    async authenticate(companyId: string, userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse> {
+        await this.initialize(companyId);
+        const authentication = this.authenticationInstances.get(companyId);
+        if (!authentication) {
             throw new ProviderNotInitializedException(ProviderType.AIRWALLEX);
         }
-        return this.providerInstance;
+        return authentication.authenticate(userId, oauthCode);
     }
 
-    private async refreshAuthToken(): Promise<AirwallexAuthResponse> {
-        try {
-            const providerInstance = await this.getProvider();
-            const result = await providerInstance.authenticate();
-            return result;
-        } catch (error) {
-            this.logger.error(
-                `Failed to refresh auth token for Airwallex: ${error.message}`,
-                error.stack,
-            );
-            throw error;
+    async getAccount(companyId: string): Promise<StandardAccount[]> {
+        await this.initialize(companyId);
+        const accounts = this.accountsInstances.get(companyId);
+        if (!accounts) {
+            throw new ProviderNotInitializedException(ProviderType.AIRWALLEX);
         }
+        return accounts.getAccounts();
     }
 
-    async authenticate(userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse> {
-        this.logger.debug(`Authenticating with Airwallex`, { userId, hasOAuthCode: !!oauthCode });
-
-        try {
-            // For Airwallex OAuth2: Exchange code for token
-            if (oauthCode) {
-                return await this.exchangeOAuthCode(oauthCode);
-            }
-
-            const providerInstance = await this.getProvider();
-            this.logger.debug(`Provider instance obtained, calling authenticate directly...`);
-
-            const authResponse = await providerInstance.authenticate();
-            this.logger.debug(`Authentication response received`);
-
-            const expiresIn = authResponse.expires_in || 1800;
-            const token = (authResponse as any).token || (authResponse as any).access_token;
-
-            if (!token) {
-                throw new Error('Token not found in auth response');
-            }
-
-            await this.tokenService.storeToken(ProviderType.AIRWALLEX, token, expiresIn, userId);
-            this.logger.log(`Successfully authenticated with Airwallex and stored token`);
-
-            return authResponse;
-        } catch (error) {
-            if (error instanceof ProviderNotInitializedException) {
-                throw error;
-            }
-
-            this.logger.error(`Failed to authenticate with Airwallex: ${error.message}`, error.stack);
-            throw new ProviderOperationException(ProviderType.AIRWALLEX, 'authenticate', error);
+    async getBalances(companyId: string): Promise<StandardBalance[]> {
+        await this.initialize(companyId);
+        const balances = this.balancesInstances.get(companyId);
+        if (!balances) {
+            throw new ProviderNotInitializedException(ProviderType.AIRWALLEX);
         }
+        return balances.getBalances();
     }
 
-    async getAccount(): Promise<StandardAccount> {
-        this.logger.debug(`Getting account for Airwallex`);
-
-        try {
-            const providerInstance = await this.getProvider();
-            const result = await providerInstance.getAccount();
-            this.logger.log(`Successfully retrieved account from Airwallex`);
-            return result;
-        } catch (error) {
-            if (error instanceof ProviderNotInitializedException) {
-                throw error;
-            }
-
-            this.logger.error(`Failed to get account from Airwallex: ${error.message}`, error.stack);
-            throw new ProviderOperationException(ProviderType.AIRWALLEX, 'get account', error);
-        }
-    }
-
-    async getBalances(): Promise<StandardBalance[]> {
-        this.logger.debug(`Getting balances for Airwallex`);
-
-        try {
-            const providerInstance = await this.getProvider();
-            const result = await providerInstance.getBalances();
-            this.logger.log(`Successfully retrieved ${result.length} balances from Airwallex`);
-            return result;
-        } catch (error) {
-            if (error instanceof ProviderNotInitializedException) {
-                throw error;
-            }
-
-            this.logger.error(`Failed to get balances from Airwallex: ${error.message}`, error.stack);
-            throw new ProviderOperationException(ProviderType.AIRWALLEX, 'get balances', error);
-        }
+    /**
+     * Get jobs - Airwallex doesn't have jobs, returns empty array
+     */
+    async getJobs(companyId: string, jobId?: string): Promise<StandardJob[]> {
+        this.logger.debug(`getJobs called for Airwallex - returning empty array`);
+        return [];
     }
 
     async getOAuthRedirectUrl(
+        companyId: string,
         userId?: string,
         action?: string,
         state?: string,
     ): Promise<{ redirectUrl: string; userId?: string; state?: string; codeVerifier?: string }> {
-        this.logger.debug(`Getting OAuth redirect URL for Airwallex`);
-
-        const config = this.configService.get<BankConfig['airwallex']>('bank.airwallex');
-        if (!config?.clientId || !config?.oauthRedirectUri) {
-            throw new Error(
-                'Airwallex OAuth configuration is incomplete. Please configure CLIENT_ID and OAUTH_REDIRECT_URI',
-            );
+        await this.initialize(companyId);
+        const oauth = this.oauthInstances.get(companyId);
+        if (!oauth) {
+            throw new ProviderNotInitializedException(ProviderType.AIRWALLEX);
         }
-
-        // Generate state if not provided (for CSRF protection)
-        const oauthState = state || `state-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-        const scope =
-            config.oauthScope ||
-            'r:awx_action:balances_view r:awx_action:settings.account_details_view';
-
-        // Generate PKCE code verifier and challenge
-        const codeVerifier = crypto.randomBytes(32).toString('base64url');
-        const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
-
-        const params = new URLSearchParams({
-            application: 'oauth-consent',
-            response_type: 'code',
-            client_id: config.clientId,
-            redirect_uri: config.oauthRedirectUri,
-            scope,
-            state: oauthState,
-            code_challenge: codeChallenge,
-            code_challenge_method: 'S256',
-        });
-
-        // OAuth authorization endpoint is at root domain, not API domain
-        // Convert api.airwallex.com -> airwallex.com
-        // Convert api-demo.airwallex.com -> demo.airwallex.com
-        let oauthBaseUrl = 'https://airwallex.com';
-        if (config.baseUrl) {
-            // Extract domain from baseUrl
-            const urlMatch = config.baseUrl.match(/https?:\/\/([^\/]+)/);
-            if (urlMatch) {
-                let domain = urlMatch[1];
-                // Remove 'api-' prefix if present (e.g., api-demo.airwallex.com -> demo.airwallex.com)
-                domain = domain.replace(/^api-/, '');
-                // Remove 'api.' prefix if present (e.g., api.airwallex.com -> airwallex.com)
-                domain = domain.replace(/^api\./, '');
-                oauthBaseUrl = `https://${domain}`;
-            }
-        }
-
-        const redirectUrl = `${oauthBaseUrl}/app/login-auth?${params.toString()}`;
-
-        // Store code_verifier with state for later use (you might want to store this in Redis/DB)
-        // For now, we'll return it so the frontend can store it
-        return { redirectUrl, state: oauthState, codeVerifier };
-    }
-
-    /**
-     * Exchange OAuth2 authorization code for access token
-     */
-    private async exchangeOAuthCode(code: string, codeVerifier?: string): Promise<AirwallexAuthResponse> {
-        const config = this.configService.get<BankConfig['airwallex']>('bank.airwallex');
-        if (!config?.clientId || !config?.apiKey || !config?.oauthRedirectUri) {
-            throw new Error(
-                'Airwallex OAuth configuration is incomplete. Please configure CLIENT_ID, CLIENT_SECRET, and OAUTH_REDIRECT_URI',
-            );
-        }
-
-        const authHttpClient = this.createAuthHttpClient();
-        const baseUrl = config.baseUrl || 'https://api.airwallex.com';
-
-        // Prepare Basic Auth header
-        const credentials = Buffer.from(`${config.clientId}:${config.apiKey}`).toString('base64');
-
-        const tokenParams: Record<string, string> = {
-            grant_type: 'authorization_code',
-            code,
-            redirect_uri: config.oauthRedirectUri,
-        };
-
-        // Add code_verifier if PKCE is used
-        if (codeVerifier) {
-            tokenParams.code_verifier = codeVerifier;
-        }
-
-        const response = await authHttpClient.post<AirwallexAuthResponse>(
-            '/oauth/token',
-            new URLSearchParams(tokenParams).toString(),
-            {
-                baseURL: baseUrl,
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    Authorization: `Basic ${credentials}`,
-                },
-            },
-        );
-
-        const authResponse = response.data;
-        const expiresIn = authResponse.expires_in || 1800;
-        const token = authResponse.access_token;
-
-        if (!token) {
-            throw new Error('Token not found in OAuth response');
-        }
-
-        await this.tokenService.storeToken(ProviderType.AIRWALLEX, token, expiresIn);
-        this.logger.log(`Successfully exchanged OAuth code for Airwallex and stored token`);
-
-        return authResponse;
+        return oauth.getOAuthRedirectUrl(userId, action, state);
     }
 }
-

@@ -11,10 +11,11 @@ export class MongoTokenRepository implements ITokenRepository {
         @InjectModel(Token.name) private readonly tokenModel: Model<TokenDocument>,
     ) { }
 
-    async findActiveByProvider(provider: ProviderType): Promise<TokenDocument | null> {
+    async findActiveByProvider(provider: ProviderType, companyId: string): Promise<TokenDocument | null> {
         return this.tokenModel
             .findOne({
                 provider,
+                companyId,
                 isActive: true,
             })
             .sort({ createdAt: -1 })
@@ -26,16 +27,16 @@ export class MongoTokenRepository implements ITokenRepository {
         return tokenDoc.save();
     }
 
-    async deactivateByProvider(provider: ProviderType): Promise<number> {
+    async deactivateByProvider(provider: ProviderType, companyId: string): Promise<number> {
         const result = await this.tokenModel.updateMany(
-            { provider, isActive: true },
+            { provider, companyId, isActive: true },
             { isActive: false },
         );
         return result.modifiedCount;
     }
 
-    async deleteByProvider(provider: ProviderType): Promise<number> {
-        const result = await this.tokenModel.deleteMany({ provider }).exec();
+    async deleteByProvider(provider: ProviderType, companyId: string): Promise<number> {
+        const result = await this.tokenModel.deleteMany({ provider, companyId }).exec();
         return result.deletedCount;
     }
 }

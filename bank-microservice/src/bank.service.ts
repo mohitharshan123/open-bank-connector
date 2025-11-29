@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AirwallexAuthResponse, StandardAccount, StandardBalance } from './sdk';
+import { AirwallexAuthResponse, StandardAccount, StandardBalance, StandardJob } from './sdk';
 import { ProviderType } from './types/provider.enum';
 import { ProviderStrategyFactory } from './strategies/provider-strategy.factory';
 import { TokenService } from './services/token.service';
@@ -15,21 +15,30 @@ export class BankService {
 
 
     /**
-     * Get account details
+     * Get account details (returns array of accounts)
      */
-    async getAccount(provider: ProviderType): Promise<StandardAccount> {
-        this.logger.debug(`Getting account for provider: ${provider}`);
+    async getAccount(provider: ProviderType, companyId: string): Promise<StandardAccount[]> {
+        this.logger.debug(`Getting accounts for provider: ${provider}, company: ${companyId}`);
         const strategy = this.strategyFactory.getStrategy(provider);
-        return strategy.getAccount();
+        return strategy.getAccount(companyId);
+    }
+
+    /**
+     * Get jobs (Basiq-specific, returns empty array for other providers)
+     */
+    async getJobs(provider: ProviderType, companyId: string, jobId?: string): Promise<StandardJob[]> {
+        this.logger.debug(`Getting jobs for provider: ${provider}, company: ${companyId}`, { jobId });
+        const strategy = this.strategyFactory.getStrategy(provider);
+        return strategy.getJobs(companyId, jobId);
     }
 
     /**
      * Get balances
      */
-    async getBalances(provider: ProviderType): Promise<StandardBalance[]> {
-        this.logger.debug(`Getting balances for provider: ${provider}`);
+    async getBalances(provider: ProviderType, companyId: string): Promise<StandardBalance[]> {
+        this.logger.debug(`Getting balances for provider: ${provider}, company: ${companyId}`);
         const strategy = this.strategyFactory.getStrategy(provider);
-        return strategy.getBalances();
+        return strategy.getBalances(companyId);
     }
 
     /**
@@ -39,12 +48,13 @@ export class BankService {
      */
     async authenticate(
         provider: ProviderType,
+        companyId: string,
         userId?: string,
         oauthCode?: string,
     ): Promise<AirwallexAuthResponse> {
-        this.logger.debug(`Authenticating with provider: ${provider}`);
+        this.logger.debug(`Authenticating with provider: ${provider}, company: ${companyId}`);
         const strategy = this.strategyFactory.getStrategy(provider);
-        return strategy.authenticate(userId, oauthCode);
+        return strategy.authenticate(companyId, userId, oauthCode);
     }
 
     /**
@@ -59,22 +69,31 @@ export class BankService {
      */
     async getOAuthRedirectUrl(
         provider: ProviderType,
+        companyId: string,
         userId?: string,
         action: string = 'connect',
         state?: string,
     ): Promise<{ redirectUrl: string; userId?: string; state?: string; codeVerifier?: string }> {
-        this.logger.debug(`Getting OAuth redirect URL for provider: ${provider}`);
+        this.logger.debug(`Getting OAuth redirect URL for provider: ${provider}, company: ${companyId}`);
         const strategy = this.strategyFactory.getStrategy(provider);
-        return strategy.getOAuthRedirectUrl(userId, action, state);
+        return strategy.getOAuthRedirectUrl(companyId, userId, action, state);
     }
 
     /**
      * Delete stored tokens for a provider (useful for debugging/testing)
      */
-    async deleteTokens(provider: ProviderType): Promise<void> {
-        this.logger.debug(`Deleting tokens for provider: ${provider}`);
-        await this.tokenService.deleteTokens(provider);
-        this.logger.log(`Successfully deleted tokens for ${provider}`);
+    async deleteTokens(provider: ProviderType, companyId: string): Promise<void> {
+        this.logger.debug(`Deleting tokens for provider: ${provider}, company: ${companyId}`);
+        await this.tokenService.deleteTokens(provider, companyId);
+        this.logger.log(`Successfully deleted tokens for ${provider}, company: ${companyId}`);
+    }
+
+    /**
+     * Check if a provider is connected for a company
+     */
+    async isConnected(provider: ProviderType, companyId: string): Promise<boolean> {
+        const tokenInfo = await this.tokenService.getTokenInfo(provider, companyId);
+        return tokenInfo.hasToken && tokenInfo.isValid;
     }
 }
 

@@ -25,5 +25,19 @@ export interface StandardBalance {
     provider: string;
 }
 
+export interface StandardJob {
+    id: string;
+    type: string;
+    status: string;
+    created: string;
+    updated: string;
+    steps?: Array<{
+        title: string;
+        status: string;
+        result?: any;
+    }>;
+    provider: string;
+}
+
 export type ProviderName = 'airwallex' | 'basiq';
 

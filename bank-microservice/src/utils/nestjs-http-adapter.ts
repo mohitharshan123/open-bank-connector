@@ -1,7 +1,7 @@
 import { HttpService } from '@nestjs/axios';
-import { HttpRequestConfig, HttpResponse, IHttpClient } from '../sdk';
-import { firstValueFrom } from 'rxjs';
 import { Logger } from '@nestjs/common';
+import { firstValueFrom } from 'rxjs';
+import { HttpRequestConfig, HttpResponse, IHttpClient } from '../sdk';
 
 export class NestJsHttpAdapter implements IHttpClient {
     private readonly logger = new Logger(NestJsHttpAdapter.name);

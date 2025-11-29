@@ -14,24 +14,7 @@ export interface BasiqAuthResponse {
 }
 
 export interface BasiqAccount {
-    id: string;
-    nickname?: string;
-    status?: string;
-    view_type?: string;
-    created_at?: string;
-    account_details?: {
-        business_details?: {
-            business_name?: string;
-            business_name_english?: string;
-        };
-        legal_entity_id?: string;
-        legal_entity_type?: string;
-    };
-    primary_contact?: {
-        email?: string;
-        mobile?: string;
-    };
-    [key: string]: unknown;
+    [key: string]: any
 }
 
 export interface BasiqAccountBalance {
@@ -69,6 +52,23 @@ export interface BasiqUser {
     lastName?: string;
     created?: string;
     updated?: string;
+    [key: string]: unknown;
+}
+
+export interface BasiqJob {
+    type: string;
+    id: string;
+    created: string;
+    updated: string;
+    steps?: Array<{
+        title: string;
+        status: string;
+        result?: any;
+    }>;
+    links?: {
+        self?: string;
+        source?: string;
+    };
     [key: string]: unknown;
 }
 

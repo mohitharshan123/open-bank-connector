@@ -451,6 +451,505 @@ private async initializeBasiq(): Promise<void> {
 
 The microservice automatically handles token management, caching, and refresh for any provider through the same infrastructure.
 
+## Adding New Features
+
+The system uses a **feature-based architecture** for better separation of concerns. Features are organized by functionality (authentication, accounts, balances, jobs, etc.) rather than by provider. This makes it easy to add new features that work across all providers.
+
+### Feature Architecture Overview
+
+```
+SDK Features (bank-microservice/src/sdk/src/features/)
+├── authentication/     # Provider authentication logic
+├── accounts/          # Account retrieval
+├── balances/          # Balance retrieval
+└── jobs/              # Job management (provider-specific)
+
+Strategy Features (bank-microservice/src/strategies/features/)
+├── authentication/    # Wraps SDK + handles token storage
+├── accounts/          # Wraps SDK + handles company context
+├── balances/          # Wraps SDK + handles company context
+└── jobs/              # Wraps SDK + handles company context
+```
+
+### Example: Adding a "Transactions" Feature
+
+Let's add a new feature to fetch transactions. This example shows the complete flow from SDK to frontend.
+
+#### Step 1: Define Standard Types (`bank-microservice/src/sdk/src/shared/types/common.ts`)
+
+Add the standard transaction type that all providers will return:
+
+```typescript
+export interface StandardTransaction {
+    id: string;
+    accountId: string;
+    amount: number;
+    currency: string;
+    description: string;
+    date: string;
+    type: 'debit' | 'credit';
+    category?: string;
+    provider: string;
+}
+```
+
+#### Step 2: Add Provider-Specific Types (`bank-microservice/src/sdk/src/shared/types/airwallex.ts`)
+
+Add Airwallex-specific transaction type:
+
+```typescript
+export interface AirwallexTransaction {
+    id: string;
+    account_id: string;
+    amount: number;
+    currency: string;
+    description: string;
+    created_at: string;
+    type: string;
+    // ... other Airwallex-specific fields
+}
+```
+
+#### Step 3: Create SDK Feature Module (`bank-microservice/src/sdk/src/features/transactions/airwallex.transactions.ts`)
+
+Create the feature module that handles transaction fetching:
+
+```typescript
+import { Logger } from '@nestjs/common';
+import type { IHttpClient } from '../../shared/interfaces/https-client.interface';
+import { AIRWALLEX_CONSTANTS } from '../../shared/constants/airwallex.constants';
+import { AirwallexTransformer } from '../../shared/transformers/airwallex.transformer';
+import type { AirwallexTransaction } from '../../shared/types/airwallex';
+import type { StandardTransaction } from '../../shared/types/common';
+
+export class AirwallexTransactions {
+    private readonly transformer: AirwallexTransformer;
+    private readonly baseUrl: string;
+
+    constructor(
+        private readonly httpClient: IHttpClient,
+        config: { baseUrl?: string },
+        private readonly logger: Logger,
+    ) {
+        this.transformer = new AirwallexTransformer();
+        this.baseUrl = config.baseUrl || AIRWALLEX_CONSTANTS.BASE_URL;
+    }
+
+    /**
+     * Get transactions for an account
+     */
+    async getTransactions(accountId: string, limit?: number): Promise<StandardTransaction[]> {
+        this.logger.debug(`[AirwallexTransactions] Getting transactions for account: ${accountId}`);
+
+        try {
+            const endpoint = `${AIRWALLEX_CONSTANTS.ENDPOINTS.GET_TRANSACTIONS}/${accountId}`;
+            const response = await this.httpClient.request<{ data: AirwallexTransaction[] }>({
+                method: 'GET',
+                url: endpoint,
+                baseURL: this.baseUrl,
+                params: limit ? { limit } : undefined,
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            return this.transformer.transformTransactions(response.data);
+        } catch (error: any) {
+            this.logger.error(`[AirwallexTransactions] Failed to get transactions`, {
+                error: error.message,
+                accountId,
+                status: error.response?.status,
+                responseData: error.response?.data,
+            });
+            throw new Error(`Failed to get Airwallex transactions: ${error.message || 'Unknown error'}`);
+        }
+    }
+}
+```
+
+#### Step 4: Add Transformer Method (`bank-microservice/src/sdk/src/shared/transformers/airwallex.transformer.ts`)
+
+Add transaction transformation method:
+
+```typescript
+transformTransactions(transactions: AirwallexTransaction[]): StandardTransaction[] {
+    return transactions.map(transaction => ({
+        id: transaction.id,
+        accountId: transaction.account_id,
+        amount: transaction.amount / 100, // Convert from cents
+        currency: transaction.currency,
+        description: transaction.description,
+        date: transaction.created_at,
+        type: transaction.type === 'debit' ? 'debit' : 'credit',
+        provider: this.providerName,
+    }));
+}
+```
+
+#### Step 5: Update Provider (`bank-microservice/src/sdk/src/providers/airwallex.provider.ts`)
+
+Add transactions feature to the provider:
+
+```typescript
+import { AirwallexTransactions } from '../features/transactions/airwallex.transactions';
+
+export class AirwallexProvider extends BaseProvider {
+    // ... existing code ...
+    private transactions: AirwallexTransactions | null = null;
+
+    constructor(...) {
+        // ... existing initialization ...
+        this.transactions = new AirwallexTransactions(this.httpClient, config, this.logger);
+    }
+
+    async getTransactions(accountId: string, limit?: number): Promise<StandardTransaction[]> {
+        if (!this.transactions) {
+            throw new Error('Transactions feature not initialized');
+        }
+        return this.transactions.getTransactions(accountId, limit);
+    }
+}
+```
+
+#### Step 6: Create Strategy Feature (`bank-microservice/src/strategies/features/transactions/airwallex.transactions.ts`)
+
+Create the strategy feature that wraps the SDK feature:
+
+```typescript
+import { Logger } from '@nestjs/common';
+import { ProviderInstance, StandardTransaction } from '../../../sdk';
+import { ProviderType } from '../../../types/provider.enum';
+import { ProviderOperationException, ProviderNotInitializedException } from '../../../exceptions/provider.exception';
+
+export class AirwallexTransactions {
+    constructor(
+        private readonly providerInstance: ProviderInstance,
+        private readonly logger: Logger,
+    ) {}
+
+    /**
+     * Get transactions for an account
+     */
+    async getTransactions(accountId: string, limit?: number): Promise<StandardTransaction[]> {
+        this.logger.debug(`Getting transactions for Airwallex account: ${accountId}`);
+
+        try {
+            // Call the provider's getTransactions method
+            const result = await (this.providerInstance as any).getTransactions(accountId, limit);
+            this.logger.log(`Successfully retrieved ${result.length} transaction(s) from Airwallex`);
+            return result;
+        } catch (error) {
+            if (error instanceof ProviderNotInitializedException) {
+                throw error;
+            }
+
+            this.logger.error(`Failed to get transactions from Airwallex: ${error.message}`, error.stack);
+            throw new ProviderOperationException(ProviderType.AIRWALLEX, 'get transactions', error);
+        }
+    }
+}
+```
+
+#### Step 7: Update Strategy (`bank-microservice/src/strategies/airwallex.strategy.ts`)
+
+Add transactions to the strategy:
+
+```typescript
+import { AirwallexTransactions } from './features/transactions/airwallex.transactions';
+
+export class AirwallexStrategy extends BaseStrategy {
+    private transactionsInstances: Map<string, AirwallexTransactions> = new Map();
+
+    protected async doInitialize(companyId: string): Promise<void> {
+        // ... existing initialization ...
+        
+        const transactions = new AirwallexTransactions(providerInstance, this.logger);
+        this.transactionsInstances.set(companyId, transactions);
+    }
+
+    async getTransactions(companyId: string, accountId: string, limit?: number): Promise<StandardTransaction[]> {
+        await this.initialize(companyId);
+        const transactions = this.transactionsInstances.get(companyId);
+        if (!transactions) {
+            throw new ProviderNotInitializedException(ProviderType.AIRWALLEX);
+        }
+        return transactions.getTransactions(accountId, limit);
+    }
+}
+```
+
+#### Step 8: Update Strategy Interface (`bank-microservice/src/strategies/provider-strategy.interface.ts`)
+
+Add the method to the interface:
+
+```typescript
+export interface IProviderStrategy {
+    // ... existing methods ...
+    
+    /**
+     * Get transactions for an account
+     */
+    getTransactions(companyId: string, accountId: string, limit?: number): Promise<StandardTransaction[]>;
+}
+```
+
+#### Step 9: Update Bank Service (`bank-microservice/src/bank.service.ts`)
+
+Add the service method:
+
+```typescript
+async getTransactions(provider: ProviderType, companyId: string, accountId: string, limit?: number): Promise<StandardTransaction[]> {
+    this.logger.debug(`Getting transactions for provider: ${provider}, company: ${companyId}, account: ${accountId}`);
+    const strategy = this.strategyFactory.getStrategy(provider);
+    return strategy.getTransactions(companyId, accountId, limit);
+}
+```
+
+#### Step 10: Update Bank Controller (`bank-microservice/src/bank.controller.ts`)
+
+Add the message pattern handler:
+
+```typescript
+export interface GetTransactionsCommand {
+    provider: ProviderType | string;
+    companyId: string;
+    accountId: string;
+    limit?: number;
+}
+
+@MessagePattern('bank.getTransactions')
+async getTransactions(@Payload() data: GetTransactionsCommand) {
+    this.logger.debug('Received getTransactions command', data);
+    const provider = this.validateProvider(data.provider);
+    return this.bankService.getTransactions(provider, data.companyId, data.accountId, data.limit);
+}
+```
+
+#### Step 11: Update API Gateway Service (`bank-api-gateway/src/services/bank-client.service.ts`)
+
+Add the client method:
+
+```typescript
+export interface GetTransactionsRequest {
+    provider: ProviderType;
+    companyId: string;
+    accountId: string;
+    limit?: number;
+}
+
+async getTransactions(request: GetTransactionsRequest) {
+    await this.ensureConnected();
+    this.logger.debug(`Calling microservice: bank.getTransactions`, request);
+    return firstValueFrom(
+        this.client.send('bank.getTransactions', {
+            provider: request.provider,
+            companyId: request.companyId,
+            accountId: request.accountId,
+            limit: request.limit,
+        }),
+    );
+}
+```
+
+#### Step 12: Update API Gateway Controller (`bank-api-gateway/src/controllers/bank.controller.ts`)
+
+Add the HTTP endpoint:
+
+```typescript
+@Post('transactions')
+@HttpCode(HttpStatus.OK)
+async getTransactions(@Body() dto: GetTransactionsDto) {
+    try {
+        this.logger.log(`Get transactions request for provider: ${dto.provider}, company: ${dto.companyId}`);
+        return await this.bankClient.getTransactions({
+            provider: dto.provider as any,
+            companyId: dto.companyId,
+            accountId: dto.accountId,
+            limit: dto.limit,
+        });
+    } catch (error: any) {
+        this.logger.error(`Get transactions failed: ${error.message}`, error.stack);
+        throw new BadRequestException(error.message || 'Failed to get transactions');
+    }
+}
+```
+
+#### Step 13: Update API Gateway DTO (`bank-api-gateway/src/dto/bank.dto.ts`)
+
+Add the DTO:
+
+```typescript
+export class GetTransactionsDto {
+    @IsEnum(ProviderTypeDto)
+    provider: ProviderTypeDto;
+
+    @IsString()
+    companyId: string;
+
+    @IsString()
+    accountId: string;
+
+    @IsOptional()
+    @IsNumber()
+    limit?: number;
+}
+```
+
+#### Step 14: Update Frontend API (`bank-demo-app/src/api/bankApi.ts`)
+
+Add the API method:
+
+```typescript
+export interface GetTransactionsRequest {
+    provider: ProviderType;
+    companyId: string;
+    accountId: string;
+    limit?: number;
+}
+
+export interface StandardTransaction {
+    id: string;
+    accountId: string;
+    amount: number;
+    currency: string;
+    description: string;
+    date: string;
+    type: 'debit' | 'credit';
+    category?: string;
+    provider: string;
+}
+
+export const bankApi = {
+    // ... existing methods ...
+    getTransactions: async (request: GetTransactionsRequest): Promise<StandardTransaction[]> => {
+        const response = await apiClient.post<StandardTransaction[]>('/transactions', request);
+        return response.data;
+    },
+};
+```
+
+#### Step 15: Update Frontend Hooks (`bank-demo-app/src/hooks/useBankQueries.ts`)
+
+Add the React Query hook:
+
+```typescript
+export const useTransactions = (provider: ProviderType, companyId: string, accountId: string, limit?: number, enabled = true) => {
+    return useQuery({
+        queryKey: [QUERY_KEYS.transactions, provider, companyId, accountId, limit],
+        queryFn: () => bankApi.getTransactions({ provider, companyId, accountId, limit }),
+        enabled: enabled && !!provider && !!companyId && !!accountId,
+    });
+};
+```
+
+#### Step 16: Update Frontend Query Keys (`bank-demo-app/src/constants/queryKeys.ts`)
+
+Add the query key:
+
+```typescript
+export const QUERY_KEYS = {
+    // ... existing keys ...
+    transactions: 'transactions',
+} as const;
+```
+
+#### Step 17: Create Frontend Component (`bank-demo-app/src/components/TransactionsList.tsx`)
+
+Create a component to display transactions:
+
+```typescript
+import type { ProviderType } from '../api/bankApi';
+import { useTransactions } from '../hooks/useBankQueries';
+
+interface TransactionsListProps {
+    provider: ProviderType;
+    companyId: string;
+    accountId: string;
+}
+
+export const TransactionsList = ({ provider, companyId, accountId }: TransactionsListProps) => {
+    const { data: transactions, isLoading, error } = useTransactions(provider, companyId, accountId);
+
+    if (isLoading) return <div>Loading transactions...</div>;
+    if (error) return <div>Error loading transactions</div>;
+    if (!transactions || transactions.length === 0) return <div>No transactions found</div>;
+
+    return (
+        <div>
+            <h3 className="text-xl font-bold mb-4">Transactions</h3>
+            <div className="space-y-2">
+                {transactions.map((transaction) => (
+                    <div key={transaction.id} className="border rounded p-4">
+                        <div className="flex justify-between">
+                            <div>
+                                <p className="font-semibold">{transaction.description}</p>
+                                <p className="text-sm text-gray-600">{transaction.date}</p>
+                            </div>
+                            <div className={`text-right ${transaction.type === 'debit' ? 'text-red-600' : 'text-green-600'}`}>
+                                <p className="font-bold">
+                                    {transaction.type === 'debit' ? '-' : '+'}{transaction.currency} {Math.abs(transaction.amount).toFixed(2)}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+```
+
+### Feature Development Checklist
+
+When adding a new feature, follow this checklist:
+
+**SDK Layer:**
+- [ ] Add standard type to `shared/types/common.ts`
+- [ ] Add provider-specific types to `shared/types/{provider}.ts`
+- [ ] Create feature module in `features/{feature-name}/{provider}.{feature-name}.ts`
+- [ ] Add transformer method to `shared/transformers/{provider}.transformer.ts`
+- [ ] Update provider class to include feature module
+- [ ] Update `IProvider` interface if needed
+
+**Strategy Layer:**
+- [ ] Create strategy feature in `strategies/features/{feature-name}/{provider}.{feature-name}.ts`
+- [ ] Update strategy class to initialize and use feature
+- [ ] Update `IProviderStrategy` interface
+- [ ] Update `BaseStrategy` if feature needs common logic
+
+**Service Layer:**
+- [ ] Add method to `BankService`
+- [ ] Add message pattern to `BankController`
+- [ ] Add command interface for message payload
+
+**API Gateway:**
+- [ ] Add request interface to `bank-client.service.ts`
+- [ ] Add client method to call microservice
+- [ ] Add DTO for validation
+- [ ] Add HTTP endpoint to controller
+
+**Frontend:**
+- [ ] Add types to `api/bankApi.ts`
+- [ ] Add API method to `bankApi` object
+- [ ] Add React Query hook to `useBankQueries.ts`
+- [ ] Add query key to `queryKeys.ts`
+- [ ] Create UI component to display feature data
+
+### Key Principles
+
+1. **Separation of Concerns**: Each feature is isolated in its own module
+2. **Company Context**: All features accept `companyId` for multi-tenant support
+3. **Error Handling**: Use `ProviderOperationException` for consistent error handling
+4. **Logging**: Include provider and company context in all log messages
+5. **Type Safety**: Define types at each layer (SDK → Strategy → Service → Gateway → Frontend)
+6. **Standard Formats**: Transform provider-specific data to standard formats
+
+### Benefits of Feature-Based Architecture
+
+- **Maintainability**: Features are isolated and easy to modify
+- **Testability**: Each feature can be tested independently
+- **Reusability**: Features can be shared across providers
+- **Scalability**: Easy to add new features without affecting existing ones
+- **Consistency**: All features follow the same pattern
+
 ## See Also
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Detailed architecture documentation

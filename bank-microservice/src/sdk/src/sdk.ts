@@ -1,16 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IProvider } from './providers/base.provider';
-import { ProviderInstance } from './providers/provider-instance';
 import { AirwallexProvider } from './providers/airwallex.provider';
+import { IProvider } from './providers/base.provider';
 import { BasiqProvider } from './providers/basiq.provider';
-import { AirwallexConfig } from './types/airwallex';
+import { ProviderInstance } from './providers/provider-instance';
+import { IHttpClient } from './shared/interfaces/https-client.interface';
+import { AirwallexConfig } from './shared/types/airwallex';
+import { BasiqConfig } from './shared/types/basiq';
 import {
     StandardAccount,
     StandardBalance,
-    ProviderName,
-} from './types/common';
-import { IHttpClient } from './interfaces/https-client.interface';
-import { BasiqConfig } from './types/basiq';
+    StandardJob
+} from './shared/types/common';
 
 /**
  * Configuration for initializing a provider
@@ -67,11 +67,19 @@ export class OpenBankSDK {
     }
 
     /**
-     * Get account details for a provider
+     * Get account details for a provider (returns array of accounts)
      */
-    async getAccount(providerName: Providers): Promise<StandardAccount> {
+    async getAccount(providerName: Providers): Promise<StandardAccount[]> {
         const provider = this.getProvider(providerName);
         return provider.getAccount();
+    }
+
+    /**
+     * Get jobs for a provider (Basiq-specific, returns empty array for other providers)
+     */
+    async getJobs(providerName: Providers, userId?: string, jobId?: string): Promise<StandardJob[]> {
+        const provider = this.getProvider(providerName);
+        return provider.getJobs(userId, jobId);
     }
 
     /**

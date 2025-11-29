@@ -23,7 +23,6 @@ export class ProviderStrategyFactory {
 
     getStrategy(provider: ProviderType): IProviderStrategy {
         const strategy = this.strategies.get(provider);
-        this.logger.debug(`Getting strategy for provider: ${provider}`, { strategy });
         if (!strategy) {
             throw new AuthenticationNotSupportedException(provider);
         }

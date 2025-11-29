@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import {
     AuthenticateDto,
-    CreateBasiqUserDto,
     GetAccountDto,
     GetBalancesDto,
     OAuthRedirectDto,
@@ -26,9 +25,10 @@ export class BankController {
     @HttpCode(HttpStatus.OK)
     async authenticate(@Body() dto: AuthenticateDto) {
         try {
-            this.logger.log(`Authenticate request for provider: ${dto.provider}`);
+            this.logger.log(`Authenticate request for provider: ${dto.provider}, company: ${dto.companyId}`);
             return await this.bankClient.authenticate({
                 provider: dto.provider as any,
+                companyId: dto.companyId,
                 userId: dto.userId,
                 oauthCode: dto.oauthCode,
             });
@@ -44,9 +44,10 @@ export class BankController {
     @HttpCode(HttpStatus.OK)
     async getOAuthRedirect(@Body() dto: OAuthRedirectDto) {
         try {
-            this.logger.log(`OAuth redirect request for provider: ${dto.provider}`);
+            this.logger.log(`OAuth redirect request for provider: ${dto.provider}, company: ${dto.companyId}`);
             return await this.bankClient.getOAuthRedirect({
                 provider: dto.provider as any,
+                companyId: dto.companyId,
                 userId: dto.userId,
                 action: dto.action,
                 state: dto.state,
@@ -63,9 +64,10 @@ export class BankController {
     @HttpCode(HttpStatus.OK)
     async getAccount(@Body() dto: GetAccountDto) {
         try {
-            this.logger.log(`Get account request for provider: ${dto.provider}`);
+            this.logger.log(`Get account request for provider: ${dto.provider}, company: ${dto.companyId}`);
             return await this.bankClient.getAccount({
                 provider: dto.provider as any,
+                companyId: dto.companyId,
             });
         } catch (error: any) {
             this.logger.error(`Get account failed: ${error.message}`, error.stack);
@@ -79,14 +81,32 @@ export class BankController {
     @HttpCode(HttpStatus.OK)
     async getBalances(@Body() dto: GetBalancesDto) {
         try {
-            this.logger.log(`Get balances request for provider: ${dto.provider}`);
+            this.logger.log(`Get balances request for provider: ${dto.provider}, company: ${dto.companyId}`);
             return await this.bankClient.getBalances({
                 provider: dto.provider as any,
+                companyId: dto.companyId,
             });
         } catch (error: any) {
             this.logger.error(`Get balances failed: ${error.message}`, error.stack);
             throw new BadRequestException(
                 error.message || 'Failed to get balances',
+            );
+        }
+    }
+
+    @Post('connection-status')
+    @HttpCode(HttpStatus.OK)
+    async getConnectionStatus(@Body() dto: { provider: string; companyId: string }) {
+        try {
+            this.logger.log(`Connection status request for provider: ${dto.provider}, company: ${dto.companyId}`);
+            return await this.bankClient.getConnectionStatus({
+                provider: dto.provider as any,
+                companyId: dto.companyId,
+            });
+        } catch (error: any) {
+            this.logger.error(`Get connection status failed: ${error.message}`, error.stack);
+            throw new BadRequestException(
+                error.message || 'Failed to get connection status',
             );
         }
     }

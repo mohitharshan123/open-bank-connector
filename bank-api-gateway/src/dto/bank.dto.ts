@@ -8,17 +8,26 @@ export enum ProviderTypeDto {
 export class GetAccountDto {
     @IsEnum(ProviderTypeDto)
     provider: ProviderTypeDto;
+
+    @IsString()
+    companyId: string;
 }
 
 export class GetBalancesDto {
     @IsEnum(ProviderTypeDto)
     provider: ProviderTypeDto;
+
+    @IsString()
+    companyId: string;
 }
 
 export class AuthenticateDto {
     @IsEnum(ProviderTypeDto)
     provider: ProviderTypeDto;
-    
+
+    @IsString()
+    companyId: string;
+
     @IsOptional()
     @IsString()
     userId?: string;
@@ -49,6 +58,9 @@ export class CreateBasiqUserDto {
 export class OAuthRedirectDto {
     @IsEnum(ProviderTypeDto)
     provider: ProviderTypeDto;
+
+    @IsString()
+    companyId: string;
 
     @IsOptional()
     @IsString()

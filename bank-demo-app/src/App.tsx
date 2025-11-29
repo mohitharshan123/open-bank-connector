@@ -1,29 +1,27 @@
 import { useEffect, useState } from 'react'
-import './App.css'
-import { AccountsList } from './components/AccountsList'
-import { AuthenticateButton } from './components/AuthenticateButton'
-import { PROVIDER_TYPES } from './constants'
-import { useAuthenticate } from './hooks/useBankQueries'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { toast } from 'react-toastify'
+import './App.css'
+import { ConnectButton } from './components/ConnectButton'
+import { ProviderDetailPage } from './components/ProviderDetailPage'
+import { COMPANIES, type CompanyId } from './constants/companies'
+import { useAuthenticate } from './hooks/useBankQueries'
 
-const App = () => {
-  const [selectedProvider, setSelectedProvider] = useState<PROVIDER_TYPES>(PROVIDER_TYPES.airwallex)
+const HomePage = () => {
+  const [selectedCompany, setSelectedCompany] = useState<CompanyId>(COMPANIES[0].id)
   const authenticate = useAuthenticate()
 
-  // Handle OAuth callback
-  useEffect(() => {
+  const handleOAuthCallback = () => {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     const error = params.get('error')
 
     if (code) {
-      // Airwallex OAuth callback - exchange code for token
       authenticate.mutate(
-        { provider: 'airwallex', oauthCode: code },
+        { provider: 'airwallex', companyId: selectedCompany, oauthCode: code },
         {
           onSuccess: () => {
             toast.success('Successfully authenticated with Airwallex!')
-            // Clear URL parameters
             window.history.replaceState({}, document.title, window.location.pathname)
           },
           onError: (err: any) => {
@@ -36,7 +34,11 @@ const App = () => {
       toast.error(`OAuth error: ${error}`)
       window.history.replaceState({}, document.title, window.location.pathname)
     }
-  }, [authenticate])
+  }
+
+  useEffect(() => {
+    handleOAuthCallback()
+  }, [selectedCompany])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -47,25 +49,50 @@ const App = () => {
         </header>
 
         <div className="mb-6">
-          <div className="flex gap-4 items-center mb-4">
-            <label className="text-sm font-medium text-gray-700">Select Provider:</label>
+          <div className="flex gap-4 items-center mb-6">
+            <label className="text-sm font-medium text-gray-700">Select Company:</label>
             <select
-              value={selectedProvider}
-              onChange={(e) => setSelectedProvider(e.target.value as PROVIDER_TYPES)}
+              value={selectedCompany}
+              onChange={(e) => setSelectedCompany(e.target.value as CompanyId)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="airwallex">Airwallex</option>
-              <option value="basiq">Basiq</option>
+              {COMPANIES.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
             </select>
-            <AuthenticateButton provider={selectedProvider} />
           </div>
-        </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <AccountsList provider={selectedProvider} />
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-2xl font-bold mb-4">Connect Providers</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="border rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-2">Airwallex</h3>
+                <p className="text-sm text-gray-600 mb-4">Connect your Airwallex account</p>
+                <ConnectButton provider="airwallex" companyId={selectedCompany} />
+              </div>
+              <div className="border rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-2">Basiq</h3>
+                <p className="text-sm text-gray-600 mb-4">Connect your Basiq account</p>
+                <ConnectButton provider="basiq" companyId={selectedCompany} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+const App = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/provider/:provider/:companyId" element={<ProviderDetailPage />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

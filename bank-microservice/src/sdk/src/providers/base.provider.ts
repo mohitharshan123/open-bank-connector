@@ -1,8 +1,9 @@
-import { IHttpClient } from '../interfaces/https-client.interface';
+import { IHttpClient } from '../shared/interfaces/https-client.interface';
 import {
     StandardAccount,
     StandardBalance,
-} from '../types/common';
+    StandardJob,
+} from '../shared/types/common';
 
 /**
  * Base interface that all providers must implement
@@ -13,14 +14,19 @@ export interface IProvider {
      */
     authenticate(): Promise<any>;
     /**
-     * Get account details
+     * Get account details (returns array of accounts)
      */
-    getAccount(userId?: string): Promise<StandardAccount>;
+    getAccount(userId?: string): Promise<StandardAccount[]>;
 
     /**
      * Get account balances
      */
     getBalances(userId?: string): Promise<StandardBalance[]>;
+
+    /**
+     * Get jobs (Basiq-specific, returns empty array for other providers)
+     */
+    getJobs(userId?: string, jobId?: string): Promise<StandardJob[]>;
 
     /**
      * Get the provider name
@@ -40,8 +46,9 @@ export abstract class BaseProvider implements IProvider {
         this.config = config;
     }
     abstract authenticate(): Promise<any>;
-    abstract getAccount(userId?: string): Promise<StandardAccount>;
+    abstract getAccount(userId?: string): Promise<StandardAccount[]>;
     abstract getBalances(userId?: string): Promise<StandardBalance[]>;
+    abstract getJobs(userId?: string, jobId?: string): Promise<StandardJob[]>;
     abstract getProviderName(): string;
 
     /**

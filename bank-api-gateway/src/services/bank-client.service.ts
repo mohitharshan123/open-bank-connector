@@ -9,14 +9,17 @@ export enum ProviderType {
 
 export interface GetAccountRequest {
     provider: ProviderType;
+    companyId: string;
 }
 
 export interface GetBalancesRequest {
     provider: ProviderType;
+    companyId: string;
 }
 
 export interface AuthenticateRequest {
     provider: ProviderType;
+    companyId: string;
     userId?: string;
     oauthCode?: string;
 }
@@ -30,9 +33,15 @@ export interface CreateBasiqUserRequest {
 
 export interface OAuthRedirectRequest {
     provider: ProviderType;
+    companyId: string;
     userId?: string;
     action?: string;
     state?: string;
+}
+
+export interface ConnectionStatusRequest {
+    provider: ProviderType;
+    companyId: string;
 }
 
 @Injectable()
@@ -86,6 +95,7 @@ export class BankClientService implements OnModuleInit, OnModuleDestroy {
         return firstValueFrom(
             this.client.send('bank.getAccount', {
                 provider: request.provider,
+                companyId: request.companyId,
             }),
         );
     }
@@ -96,6 +106,7 @@ export class BankClientService implements OnModuleInit, OnModuleDestroy {
         return firstValueFrom(
             this.client.send('bank.getBalances', {
                 provider: request.provider,
+                companyId: request.companyId,
             }),
         );
     }
@@ -106,6 +117,7 @@ export class BankClientService implements OnModuleInit, OnModuleDestroy {
         return firstValueFrom(
             this.client.send('bank.authenticate', {
                 provider: request.provider,
+                companyId: request.companyId,
                 userId: request.userId,
                 oauthCode: request.oauthCode,
             }),
@@ -126,9 +138,21 @@ export class BankClientService implements OnModuleInit, OnModuleDestroy {
         return firstValueFrom(
             this.client.send('bank.oauthRedirect', {
                 provider: request.provider,
+                companyId: request.companyId,
                 userId: request.userId,
                 action: request.action,
                 state: request.state,
+            }),
+        );
+    }
+
+    async getConnectionStatus(request: ConnectionStatusRequest) {
+        await this.ensureConnected();
+        this.logger.debug(`Calling microservice: bank.connectionStatus`, request);
+        return firstValueFrom(
+            this.client.send('bank.connectionStatus', {
+                provider: request.provider,
+                companyId: request.companyId,
             }),
         );
     }

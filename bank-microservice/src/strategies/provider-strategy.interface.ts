@@ -1,5 +1,5 @@
 import { AirwallexAuthResponse } from '../sdk';
-import { StandardAccount, StandardBalance } from '../sdk';
+import { StandardAccount, StandardBalance, StandardJob } from '../sdk';
 import { ProviderType } from '../types/provider.enum';
 
 /**
@@ -14,22 +14,27 @@ export interface IProviderStrategy {
     /**
      * Authenticate with the provider
      */
-    authenticate(userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse>;
+    authenticate(companyId: string, userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse>;
 
     /**
-     * Get account details
+     * Get account details (returns array of accounts)
      */
-    getAccount(): Promise<StandardAccount>;
+    getAccount(companyId: string): Promise<StandardAccount[]>;
 
     /**
      * Get balances
      */
-    getBalances(): Promise<StandardBalance[]>;
+    getBalances(companyId: string): Promise<StandardBalance[]>;
+
+    /**
+     * Get jobs (Basiq-specific, returns empty array for other providers)
+     */
+    getJobs(companyId: string, jobId?: string): Promise<StandardJob[]>;
 
     /**
      * Get OAuth redirect URL
      */
-    getOAuthRedirectUrl(userId?: string, action?: string, state?: string): Promise<{
+    getOAuthRedirectUrl(companyId: string, userId?: string, action?: string, state?: string): Promise<{
         redirectUrl: string;
         userId?: string;
         state?: string;

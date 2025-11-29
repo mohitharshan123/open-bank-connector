@@ -6,6 +6,7 @@ export type ProviderType = 'airwallex' | 'basiq';
 
 export interface AuthenticateRequest {
     provider: ProviderType;
+    companyId: string;
     userId?: string;
     oauthCode?: string;
 }
@@ -16,15 +17,17 @@ export interface AuthenticateResponse {
     expires_in?: number;
     scope?: string;
     refresh_token?: string;
-    redirectUrl?: string; // For providers that require OAuth redirect (e.g., Basiq)
+    redirectUrl?: string;
 }
 
 export interface GetAccountRequest {
     provider: ProviderType;
+    companyId: string;
 }
 
 export interface GetBalancesRequest {
     provider: ProviderType;
+    companyId: string;
 }
 
 export interface CreateBasiqUserRequest {
@@ -36,9 +39,21 @@ export interface CreateBasiqUserRequest {
 
 export interface OAuthRedirectRequest {
     provider: ProviderType;
+    companyId: string;
     userId?: string;
     action?: string;
     state?: string;
+}
+
+export interface ConnectionStatusRequest {
+    provider: ProviderType;
+    companyId: string;
+}
+
+export interface ConnectionStatusResponse {
+    isConnected: boolean;
+    provider: ProviderType;
+    companyId: string;
 }
 
 export interface StandardAccount {
@@ -74,12 +89,16 @@ export const bankApi = {
         const response = await apiClient.post<{ redirectUrl: string }>('/oauth/redirect', request);
         return response.data;
     },
-    getAccount: async (request: GetAccountRequest): Promise<StandardAccount> => {
-        const response = await apiClient.post<StandardAccount>('/account', request);
+    getAccount: async (request: GetAccountRequest): Promise<StandardAccount[]> => {
+        const response = await apiClient.post<StandardAccount[]>('/account', request);
         return response.data;
     },
     getBalances: async (request: GetBalancesRequest): Promise<StandardBalance[]> => {
         const response = await apiClient.post<StandardBalance[]>('/balances', request);
+        return response.data;
+    },
+    getConnectionStatus: async (request: ConnectionStatusRequest): Promise<ConnectionStatusResponse> => {
+        const response = await apiClient.post<ConnectionStatusResponse>('/connection-status', request);
         return response.data;
     },
 };

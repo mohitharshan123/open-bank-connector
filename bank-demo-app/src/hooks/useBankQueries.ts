@@ -1,24 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
-import type { ProviderType, OAuthRedirectRequest } from '../api/bankApi';
+import type { OAuthRedirectRequest, ProviderType } from '../api/bankApi';
 import { bankApi } from '../api/bankApi';
 import { QUERY_KEYS } from '../constants/queryKeys';
 
 export const useAuthenticate = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: ({ provider, userId, oauthCode }: { provider: ProviderType; userId?: string; oauthCode?: string }) =>
-            bankApi.authenticate({ provider, userId, oauthCode }),
+        mutationFn: ({ provider, companyId, userId, oauthCode }: { provider: ProviderType; companyId: string; userId?: string; oauthCode?: string }) =>
+            bankApi.authenticate({ provider, companyId, userId, oauthCode }),
         mutationKey: [QUERY_KEYS.authenticate],
-        onSuccess: (data) => {
-            // If redirectUrl is present, redirect user to consent page (e.g., Basiq)
+        onSuccess: (data, variables) => {
             if (data.redirectUrl) {
                 window.location.href = data.redirectUrl;
-                return; // Don't invalidate queries yet, wait for user to complete OAuth flow
+                return; 
             }
-            // Otherwise, authentication completed successfully (e.g., Airwallex OAuth callback)
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.accounts] });
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.balances] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.accounts, variables.provider, variables.companyId] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.balances, variables.provider, variables.companyId] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.connectionStatus, variables.provider, variables.companyId] });
         },
         onError: () => {
             toast.error('Authentication failed');
@@ -35,19 +34,27 @@ export const useOAuthRedirect = () => {
     });
 };
 
-export const useAccount = (provider: ProviderType, enabled = true) => {
+export const useAccount = (provider: ProviderType, companyId: string, enabled = true) => {
     return useQuery({
-        queryKey: [QUERY_KEYS.accounts, provider],
-        queryFn: () => bankApi.getAccount({ provider }),
-        enabled: enabled && !!provider,
+        queryKey: [QUERY_KEYS.accounts, provider, companyId],
+        queryFn: () => bankApi.getAccount({ provider, companyId }),
+        enabled: enabled && !!provider && !!companyId,
     });
 };
 
-export const useBalances = (provider: ProviderType, enabled = true) => {
+export const useBalances = (provider: ProviderType, companyId: string, enabled = true) => {
     return useQuery({
-        queryKey: [QUERY_KEYS.balances, provider],
-        queryFn: () => bankApi.getBalances({ provider }),
-        enabled: enabled && !!provider,
+        queryKey: [QUERY_KEYS.balances, provider, companyId],
+        queryFn: () => bankApi.getBalances({ provider, companyId }),
+        enabled: enabled && !!provider && !!companyId,
     });
 };
 
+export const useConnectionStatus = (provider: ProviderType, companyId: string, enabled = true) => {
+    return useQuery({
+        queryKey: [QUERY_KEYS.connectionStatus, provider, companyId],
+        queryFn: () => bankApi.getConnectionStatus({ provider, companyId }),
+        enabled: enabled && !!provider && !!companyId,
+        refetchInterval: 30000,
+    });
+};

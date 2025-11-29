@@ -5,8 +5,10 @@ export const BASIQ_CONSTANTS = {
     ENDPOINTS: {
         AUTHENTICATE: '/token',
         CREATE_USER: '/users',
-        GET_ACCOUNT: (userId: string) => `/users/${userId}/accounts`,
-        GET_BALANCES: (userId: string) => `/users/${userId}/insights/balance`,
+        GET_ACCOUNTS: (userId: string) => `/users/${userId}/accounts`,
+        GET_BALANCES: (userId: string) => `/users/${userId}/accounts`,
+        GET_JOBS: (userId: string) => `/users/${userId}/jobs`,
+        GET_JOB: (jobId: string) => `/jobs/${jobId}`,
     },
     HEADERS: {
         VERSION: 'basiq-version',

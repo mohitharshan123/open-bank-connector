@@ -1,13 +1,13 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { AirwallexAuthResponse } from '../sdk';
 import { RedisConfig } from '../config/redis.config';
 import { REDIS_CLIENT } from '../modules/redis.module';
 import type { ITokenRepository } from '../repositories/token.repository.interface';
 import { TokenRepository } from '../repositories/token.repository.interface';
-import type { TokenDocument, BasiqTokenDocument, AirwallexTokenDocument } from '../schemas/token.schema';
-import { isBasiqToken, isAirwallexToken } from '../schemas/token.schema';
+import type { TokenDocument } from '../schemas/token.schema';
+import { isBasiqToken } from '../schemas/token.schema';
+import { AirwallexAuthResponse } from '../sdk';
 import { ProviderType } from '../types/provider.enum';
 
 interface TokenData {
@@ -42,9 +42,10 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
 
     async getValidToken(
         provider: ProviderType,
+        companyId: string,
         refreshCallback: () => Promise<AirwallexAuthResponse>,
     ): Promise<string> {
-        const redisKey = this.getRedisKey(provider);
+        const redisKey = this.getRedisKey(provider, companyId);
         const cachedToken = await this.getTokenFromRedis(redisKey);
 
         if (cachedToken && this.isTokenValid(cachedToken.expiresAt)) {
@@ -54,42 +55,43 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
             return cachedToken.token;
         }
 
-        const existingRefresh = this.refreshLocks.get(provider);
+        const lockKey = `${provider}:${companyId}`;
+        const existingRefresh = this.refreshLocks.get(lockKey as any);
         if (existingRefresh) {
-            this.logger.debug(`Refresh already in progress for ${provider}, waiting...`);
+            this.logger.debug(`Refresh already in progress for ${provider} (company: ${companyId}), waiting...`);
             try {
                 return await existingRefresh;
             } catch (error) {
                 this.logger.warn(`Existing refresh promise failed, retrying: ${error.message}`);
-                this.refreshLocks.delete(provider);
+                this.refreshLocks.delete(lockKey as any);
             }
         }
 
-        this.logger.log(`Token expired or not found for ${provider}, refreshing...`);
-        const refreshPromise = this.refreshToken(provider, refreshCallback)
+        this.logger.log(`Token expired or not found for ${provider} (company: ${companyId}), refreshing...`);
+        const refreshPromise = this.refreshToken(provider, companyId, refreshCallback)
             .finally(() => {
-                this.refreshLocks.delete(provider);
-                this.logger.debug(`Refresh lock released for ${provider}`);
+                this.refreshLocks.delete(lockKey as any);
+                this.logger.debug(`Refresh lock released for ${provider} (company: ${companyId})`);
             });
 
-        this.refreshLocks.set(provider, refreshPromise);
+        this.refreshLocks.set(lockKey as any, refreshPromise);
         return refreshPromise;
     }
 
-    async getActiveToken(provider: ProviderType): Promise<TokenDocument | null> {
-        const redisKey = this.getRedisKey(provider);
+    async getActiveToken(provider: ProviderType, companyId: string): Promise<TokenDocument | null> {
+        const redisKey = this.getRedisKey(provider, companyId);
         const cachedToken = await this.getTokenFromRedis(redisKey);
 
         if (cachedToken) {
             if (provider === ProviderType.BASIQ && !cachedToken.userId) {
-                const mongoToken = await this.tokenRepository.findActiveByProvider(provider);
+                const mongoToken = await this.tokenRepository.findActiveByProvider(provider, companyId);
                 if (mongoToken && isBasiqToken(mongoToken)) {
                     cachedToken.userId = mongoToken.userId;
                     await this.setTokenInRedis(redisKey, cachedToken, Math.floor((cachedToken.expiresAt - Date.now()) / 1000));
                 }
             }
 
-            const tokenDoc = await this.tokenRepository.findActiveByProvider(provider);
+            const tokenDoc = await this.tokenRepository.findActiveByProvider(provider, companyId);
             if (tokenDoc) {
                 return tokenDoc;
             }
@@ -97,7 +99,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
             return null;
         }
 
-        return this.tokenRepository.findActiveByProvider(provider);
+        return this.tokenRepository.findActiveByProvider(provider, companyId);
     }
 
     private isTokenValid(expiresAt: Date | number): boolean {
@@ -106,8 +108,8 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         return new Date(expiryTime - bufferTime) > new Date();
     }
 
-    private getRedisKey(provider: ProviderType): string {
-        return `${this.keyPrefix}${provider}`;
+    private getRedisKey(provider: ProviderType, companyId: string): string {
+        return `${this.keyPrefix}${provider}:${companyId}`;
     }
 
     private async getTokenFromRedis(key: string): Promise<TokenData | null> {
@@ -138,19 +140,20 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
 
     async refreshToken(
         provider: ProviderType,
+        companyId: string,
         refreshCallback: () => Promise<AirwallexAuthResponse>,
     ): Promise<string> {
         try {
-            await this.deactivateTokens(provider);
+            await this.deactivateTokens(provider, companyId);
 
-            this.logger.debug(`Calling refresh callback for ${provider}...`);
+            this.logger.debug(`Calling refresh callback for ${provider} (company: ${companyId})...`);
 
             let authResponse: AirwallexAuthResponse;
             try {
                 authResponse = await refreshCallback();
             } catch (callbackError) {
                 this.logger.error(
-                    `Refresh callback failed for ${provider}: ${callbackError.message}`,
+                    `Refresh callback failed for ${provider} (company: ${companyId}): ${callbackError.message}`,
                     callbackError.stack,
                 );
                 throw callbackError;
@@ -171,9 +174,9 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
                 throw new Error('Token not found in auth response');
             }
 
-            const redisKey = this.getRedisKey(provider);
+            const redisKey = this.getRedisKey(provider, companyId);
 
-            const existingToken = await this.tokenRepository.findActiveByProvider(provider);
+            const existingToken = await this.tokenRepository.findActiveByProvider(provider, companyId);
             const userId = existingToken && isBasiqToken(existingToken) ? existingToken.userId : undefined;
 
             const tokenData: TokenData = {
@@ -186,6 +189,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
 
             await this.tokenRepository.create({
                 provider,
+                companyId,
                 token,
                 userId,
                 expiresAt,
@@ -194,50 +198,52 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
             });
 
             this.logger.log(
-                `Successfully refreshed token for ${provider} (expires at ${expiresAt.toISOString()}) - stored in Redis and MongoDB`,
+                `Successfully refreshed token for ${provider} (company: ${companyId}, expires at ${expiresAt.toISOString()}) - stored in Redis and MongoDB`,
             );
 
             return token;
         } catch (error) {
             this.logger.error(
-                `Failed to refresh token for ${provider}: ${error.message}`,
+                `Failed to refresh token for ${provider} (company: ${companyId}): ${error.message}`,
                 error.stack,
             );
             throw error;
         }
     }
 
-    async deactivateTokens(provider: ProviderType): Promise<void> {
-        const modifiedCount = await this.tokenRepository.deactivateByProvider(provider);
+    async deactivateTokens(provider: ProviderType, companyId: string): Promise<void> {
+        const modifiedCount = await this.tokenRepository.deactivateByProvider(provider, companyId);
 
         if (modifiedCount > 0) {
             this.logger.debug(
-                `Deactivated ${modifiedCount} token(s) for ${provider}`,
+                `Deactivated ${modifiedCount} token(s) for ${provider} (company: ${companyId})`,
             );
         }
     }
 
     async storeToken(
         provider: ProviderType,
+        companyId: string,
         token: string,
         expiresIn: number,
         userId?: string,
     ): Promise<TokenDocument> {
-        await this.deactivateTokens(provider);
+        await this.deactivateTokens(provider, companyId);
 
         const expiresAtMs = Date.now() + expiresIn * 1000;
         const expiresAt = new Date(expiresAtMs);
 
-        const redisKey = this.getRedisKey(provider);
+        const redisKey = this.getRedisKey(provider, companyId);
         const tokenData: TokenData = {
             token,
             expiresAt: expiresAtMs,
-            userId, 
+            userId,
         };
         await this.setTokenInRedis(redisKey, tokenData, expiresIn + 60);
 
         return this.tokenRepository.create({
             provider,
+            companyId,
             token,
             userId,
             expiresAt,
@@ -246,12 +252,12 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         });
     }
 
-    async getTokenInfo(provider: ProviderType): Promise<{
+    async getTokenInfo(provider: ProviderType, companyId: string): Promise<{
         hasToken: boolean;
         expiresAt?: Date;
         isValid: boolean;
     }> {
-        const redisKey = this.getRedisKey(provider);
+        const redisKey = this.getRedisKey(provider, companyId);
         const cachedToken = await this.getTokenFromRedis(redisKey);
 
         if (cachedToken) {
@@ -262,7 +268,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
             };
         }
 
-        const token = await this.tokenRepository.findActiveByProvider(provider);
+        const token = await this.tokenRepository.findActiveByProvider(provider, companyId);
 
         if (!token) {
             return {
@@ -278,12 +284,12 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         };
     }
 
-    async deleteTokens(provider: ProviderType): Promise<void> {
-        const redisKey = this.getRedisKey(provider);
+    async deleteTokens(provider: ProviderType, companyId: string): Promise<void> {
+        const redisKey = this.getRedisKey(provider, companyId);
         await this.redis.del(redisKey);
 
-        const deletedCount = await this.tokenRepository.deleteByProvider(provider);
-        this.logger.log(`Deleted token(s) for ${provider} from Redis and MongoDB (${deletedCount} MongoDB records)`);
+        const deletedCount = await this.tokenRepository.deleteByProvider(provider, companyId);
+        this.logger.log(`Deleted token(s) for ${provider} (company: ${companyId}) from Redis and MongoDB (${deletedCount} MongoDB records)`);
     }
 
     private getProviderMetadata(
