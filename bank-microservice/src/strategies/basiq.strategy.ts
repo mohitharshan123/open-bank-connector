@@ -21,7 +21,6 @@ import { BasiqBalances } from './features/balances/basiq.balances';
 import { BasiqJobs } from './features/jobs/basiq.jobs';
 import { BasiqOAuth } from './oauth/basiq.oauth';
 import { IProviderStrategy } from './provider-strategy.interface';
-import { isBasiqToken } from '../schemas/token.schema';
 
 @Injectable()
 export class BasiqStrategy extends BaseStrategy implements IProviderStrategy {

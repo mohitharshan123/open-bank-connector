@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { IHttpClient } from '../shared/interfaces/https-client.interface';
-import { BasiqAuthentication } from '../features/authentication/basiq.authentication';
 import { BasiqAccounts } from '../features/accounts/basiq.accounts';
+import { BasiqAuthentication } from '../features/authentication/basiq.authentication';
 import { BasiqBalances } from '../features/balances/basiq.balances';
 import { BasiqJobs } from '../features/jobs/basiq.jobs';
+import { BASIQ_CONSTANTS } from '../shared/constants/basiq.constants';
+import type { IHttpClient } from '../shared/interfaces/https-client.interface';
 import type { BasiqAuthResponse, BasiqConfig, BasiqCreateUserRequest, BasiqUser } from '../shared/types/basiq';
 import { StandardAccount, StandardBalance, StandardJob } from '../shared/types/common';
 import { BaseProvider } from './base.provider';
-import { BASIQ_CONSTANTS } from '../shared/constants/basiq.constants';
 
 @Injectable()
 export class BasiqProvider extends BaseProvider {
