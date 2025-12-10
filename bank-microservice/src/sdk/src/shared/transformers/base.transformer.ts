@@ -1,12 +1,13 @@
 import {
     StandardAccount,
     StandardBalance,
+    StandardTransaction,
 } from '../types/common';
 
 /**
  * Base transformer interface that all provider transformers must implement
  */
-export interface ITransformer<TProviderAccount, TProviderBalance> {
+export interface ITransformer<TProviderAccount, TProviderBalance, TProviderTransaction> {
     /**
      * Transform provider-specific account to standard format
      */
@@ -16,6 +17,11 @@ export interface ITransformer<TProviderAccount, TProviderBalance> {
      * Transform provider-specific balances array to standard format
      */
     transformBalances(balances: TProviderBalance[]): StandardBalance[];
+
+    /**
+     * Transform provider-specific transactions array to standard format
+     */
+    transformTransactions(transactions: TProviderTransaction[]): StandardTransaction[];
 }
 
 /**
@@ -23,8 +29,9 @@ export interface ITransformer<TProviderAccount, TProviderBalance> {
  */
 export abstract class BaseTransformer<
     TProviderAccount,
-    TProviderBalance
-> implements ITransformer<TProviderAccount, TProviderBalance> {
+    TProviderBalance,
+    TProviderTransaction,
+> implements ITransformer<TProviderAccount, TProviderBalance, TProviderTransaction> {
     protected providerName: string;
 
     constructor(providerName: string) {
@@ -33,6 +40,6 @@ export abstract class BaseTransformer<
 
     abstract transformAccounts(accounts: TProviderAccount): StandardAccount[];
     abstract transformBalances(balances: TProviderBalance[]): StandardBalance[];
-
+    abstract transformTransactions(transactions: TProviderTransaction[]): StandardTransaction[];
 }
 

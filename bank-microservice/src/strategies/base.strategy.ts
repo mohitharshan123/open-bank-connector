@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
-import { IHttpClient, ProviderInstance, OpenBankSDK, AirwallexAuthResponse } from '../sdk';
+import { IHttpClient, ProviderInstance, OpenBankSDK, AirwallexAuthResponse, FiskilAuthResponse } from '../sdk';
 import { TokenService } from '../services/token.service';
 import { ProviderType } from '../types/provider.enum';
 import { ProviderNotInitializedException } from '../exceptions/provider.exception';
@@ -97,7 +97,7 @@ export abstract class BaseStrategy {
     /**
      * Refresh authentication token
      */
-    protected async refreshAuthToken(companyId: string): Promise<AirwallexAuthResponse> {
+    protected async refreshAuthToken(companyId: string): Promise<AirwallexAuthResponse | FiskilAuthResponse> {
         try {
             const providerInstance = await this.getProvider(companyId);
             const result = await providerInstance.authenticate();

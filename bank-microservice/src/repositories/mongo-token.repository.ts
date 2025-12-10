@@ -39,5 +39,30 @@ export class MongoTokenRepository implements ITokenRepository {
         const result = await this.tokenModel.deleteMany({ provider, companyId }).exec();
         return result.deletedCount;
     }
+
+    async updateMetadata(provider: ProviderType, companyId: string, metadata: Record<string, any>): Promise<TokenDocument | null> {
+        const tokenDoc = await this.findActiveByProvider(provider, companyId);
+        if (!tokenDoc) {
+            return null;
+        }
+
+        const existingMetadata = tokenDoc.metadata || {};
+        const updatedMetadata = {
+            ...existingMetadata,
+            ...metadata,
+        };
+
+        const result = await this.tokenModel.updateOne(
+            { _id: tokenDoc._id },
+            { $set: { metadata: updatedMetadata } }
+        ).exec();
+
+        if (result.modifiedCount === 0) {
+            tokenDoc.metadata = updatedMetadata;
+            return tokenDoc.save();
+        }
+
+        return this.findActiveByProvider(provider, companyId);
+    }
 }
 

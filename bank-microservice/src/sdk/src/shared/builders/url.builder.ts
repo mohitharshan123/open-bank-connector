@@ -1,7 +1,3 @@
-/**
- * Builder pattern for constructing URLs with query parameters
- * Provides a fluent API for building URLs consistently
- */
 export class UrlBuilder {
     private baseUrl: string;
     private urlPath: string = '';

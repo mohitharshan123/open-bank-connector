@@ -61,28 +61,19 @@ export class AirwallexToken extends BaseToken {
 
 export const AirwallexTokenSchema = SchemaFactory.createForClass(AirwallexToken);
 
-@Schema()
-export class BasiqToken extends BaseToken {
-    @Prop({ required: true })
-    userId: string;
-}
-
-export const BasiqTokenSchema = SchemaFactory.createForClass(BasiqToken);
-
 BaseTokenSchema.discriminator(ProviderType.AIRWALLEX, AirwallexTokenSchema);
-BaseTokenSchema.discriminator(ProviderType.BASIQ, BasiqTokenSchema);
 
 export type BaseTokenDocument = BaseToken & Document & { provider: ProviderType };
 export type AirwallexTokenDocument = AirwallexToken & Document & { provider: ProviderType.AIRWALLEX };
-export type BasiqTokenDocument = BasiqToken & Document & { provider: ProviderType.BASIQ };
-export type TokenDocument = AirwallexTokenDocument | BasiqTokenDocument;
+export type FiskilTokenDocument = BaseToken & Document & { provider: ProviderType.FISKIL };
+export type TokenDocument = AirwallexTokenDocument | FiskilTokenDocument;
 
 export function isAirwallexToken(token: BaseTokenDocument): token is AirwallexTokenDocument {
     return token.provider === ProviderType.AIRWALLEX;
 }
 
-export function isBasiqToken(token: BaseTokenDocument): token is BasiqTokenDocument {
-    return token.provider === ProviderType.BASIQ;
+export function isFiskilToken(token: BaseTokenDocument): token is FiskilTokenDocument {
+    return token.provider === ProviderType.FISKIL;
 }
 
 export const Token = BaseToken;

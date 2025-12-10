@@ -1,33 +1,32 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AirwallexAccounts } from './features/accounts/airwallex.accounts';
-import { BasiqAccounts } from './features/accounts/basiq.accounts';
+import { FiskilAccounts } from './features/accounts/fiskil.accounts';
 import { AirwallexAuthentication } from './features/authentication/airwallex.authentication';
-import { BasiqAuthentication } from './features/authentication/basiq.authentication';
+import { FiskilAuthentication } from './features/authentication/fiskil.authentication';
 import { AirwallexBalances } from './features/balances/airwallex.balances';
-import { BasiqBalances } from './features/balances/basiq.balances';
-import { BasiqJobs } from './features/jobs/basiq.jobs';
-import { BasiqUsers } from './features/users/basiq.users';
+import { FiskilBalances } from './features/balances/fiskil.balances';
+import { FiskilTransactions } from './features/transactions/fiskil.transactions';
+import { FiskilUsers } from './features/users/fiskil.users';
 import { AirwallexProvider } from './providers/airwallex.provider';
 import { IProvider } from './providers/base.provider';
-import { BasiqProvider } from './providers/basiq.provider';
+import { FiskilProvider } from './providers/fiskil.provider';
 import { ProviderInstance } from './providers/provider-instance';
 import { IHttpClient } from './shared/interfaces/https-client.interface';
 import { AirwallexConfig } from './shared/types/airwallex';
-import { BasiqConfig } from './shared/types/basiq';
 import {
     StandardAccount,
-    StandardBalance,
-    StandardJob
+    StandardBalance
 } from './shared/types/common';
+import { FiskilConfig } from './shared/types/fiskil';
 
 /**
  * Configuration for initializing a provider
  */
-export type ProviderConfig = AirwallexConfig;
+export type ProviderConfig = AirwallexConfig | FiskilConfig;
 
 export enum Providers {
     AIRWALLEX = 'airwallex',
-    BASIQ = 'basiq',
+    FISKIL = 'fiskil',
 }
 
 /**
@@ -42,11 +41,11 @@ export class OpenBankSDK {
         private readonly airwallexAccounts: AirwallexAccounts,
         private readonly airwallexAuthentication: AirwallexAuthentication,
         private readonly airwallexBalances: AirwallexBalances,
-        private readonly basiqAccounts: BasiqAccounts,
-        private readonly basiqAuthentication: BasiqAuthentication,
-        private readonly basiqBalances: BasiqBalances,
-        private readonly basiqJobs: BasiqJobs,
-        private readonly basiqUsers: BasiqUsers,
+        private readonly fiskilAccounts: FiskilAccounts,
+        private readonly fiskilBalances: FiskilBalances,
+        private readonly fiskilAuthentication: FiskilAuthentication,
+        private readonly fiskilUsers: FiskilUsers,
+        private readonly fiskilTransactions: FiskilTransactions,
     ) { }
 
     /**
@@ -75,24 +74,23 @@ export class OpenBankSDK {
     }
 
     /**
-     * Initialize Basiq provider and return a provider-specific instance
-     * Usage: const basiq = sdk.useBasiq(httpClient, config, logger, authHttpClient); await basiq.getAccount();
+     * Initialize Fiskil provider and return a provider-specific instance
+     * Usage: const fiskil = sdk.useFiskil(httpClient, config, logger, authHttpClient); await fiskil.authenticate();
      */
-    useBasiq(httpClient: IHttpClient, config: BasiqConfig, logger?: Logger, authHttpClient?: IHttpClient): ProviderInstance {
-        const providerLogger = logger || this.logger;
-        const provider = new BasiqProvider(
+    useFiskil(httpClient: IHttpClient, config: FiskilConfig, logger?: Logger, authHttpClient?: IHttpClient): ProviderInstance {
+        const provider = new FiskilProvider(
             httpClient,
             config,
-            providerLogger,
+            logger,
             authHttpClient,
-            this.basiqAuthentication,
-            this.basiqAccounts,
-            this.basiqBalances,
-            this.basiqJobs,
-            this.basiqUsers,
+            this.fiskilAuthentication,
+            this.fiskilUsers,
+            this.fiskilAccounts,
+            this.fiskilBalances,
+            this.fiskilTransactions,
         );
-        this.registerProvider(Providers.BASIQ, provider);
-        return new ProviderInstance(provider, providerLogger);
+        this.registerProvider(Providers.FISKIL, provider);
+        return new ProviderInstance(provider, logger || this.logger);
     }
 
     private getProvider(providerName: Providers): IProvider {
@@ -109,14 +107,6 @@ export class OpenBankSDK {
     async getAccount(providerName: Providers): Promise<StandardAccount[]> {
         const provider = this.getProvider(providerName);
         return provider.getAccount();
-    }
-
-    /**
-     * Get jobs for a provider (Basiq-specific, returns empty array for other providers)
-     */
-    async getJobs(providerName: Providers, userId?: string, jobId?: string): Promise<StandardJob[]> {
-        const provider = this.getProvider(providerName);
-        return provider.getJobs(userId, jobId);
     }
 
     /**

@@ -2,7 +2,6 @@ import { IHttpClient } from '../shared/interfaces/https-client.interface';
 import {
     StandardAccount,
     StandardBalance,
-    StandardJob,
 } from '../shared/types/common';
 
 /**
@@ -23,10 +22,6 @@ export interface IProvider {
      */
     getBalances(userId?: string): Promise<StandardBalance[]>;
 
-    /**
-     * Get jobs (Basiq-specific, returns empty array for other providers)
-     */
-    getJobs(userId?: string, jobId?: string): Promise<StandardJob[]>;
 
     /**
      * Get the provider name
@@ -48,7 +43,6 @@ export abstract class BaseProvider implements IProvider {
     abstract authenticate(userId?: string): Promise<any>;
     abstract getAccount(userId?: string): Promise<StandardAccount[]>;
     abstract getBalances(userId?: string): Promise<StandardBalance[]>;
-    abstract getJobs(userId?: string, jobId?: string): Promise<StandardJob[]>;
     abstract getProviderName(): string;
 
     /**

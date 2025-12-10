@@ -1,10 +1,13 @@
 import {
     AirwallexAccount,
     AirwallexAccountBalance,
+    AirwallexTransaction,
 } from '../types/airwallex';
 import {
     StandardAccount,
     StandardBalance,
+    StandardTransaction,
+    TransactionType,
 } from '../types/common';
 import { BaseTransformer } from './base.transformer';
 
@@ -13,7 +16,8 @@ import { BaseTransformer } from './base.transformer';
  */
 export class AirwallexTransformer extends BaseTransformer<
     AirwallexAccount,
-    AirwallexAccountBalance
+    AirwallexAccountBalance,
+    AirwallexTransaction
 > {
     constructor() {
         super('airwallex');
@@ -41,6 +45,19 @@ export class AirwallexTransformer extends BaseTransformer<
             available: balance.available_amount / 100,
             current: balance.total_amount / 100,
             currency: balance.currency,
+            provider: this.providerName,
+        }));
+    }
+
+    transformTransactions(transactions: AirwallexTransaction[]): StandardTransaction[] {
+        return transactions.map(transaction => ({
+            id: transaction.id,
+            accountId: transaction.account_id,
+            amount: transaction.amount,
+            currency: transaction.currency,
+            description: transaction.description,
+            date: transaction.created_at,
+            type: transaction.type as TransactionType,
             provider: this.providerName,
         }));
     }

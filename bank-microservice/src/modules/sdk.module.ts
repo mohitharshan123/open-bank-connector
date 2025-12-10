@@ -1,13 +1,13 @@
 import { HttpModule } from '@nestjs/axios';
 import { Global, Module } from '@nestjs/common';
 import { AirwallexAccounts } from '../sdk/src/features/accounts/airwallex.accounts';
-import { BasiqAccounts } from '../sdk/src/features/accounts/basiq.accounts';
 import { AirwallexAuthentication } from '../sdk/src/features/authentication/airwallex.authentication';
-import { BasiqAuthentication } from '../sdk/src/features/authentication/basiq.authentication';
 import { AirwallexBalances } from '../sdk/src/features/balances/airwallex.balances';
-import { BasiqBalances } from '../sdk/src/features/balances/basiq.balances';
-import { BasiqJobs } from '../sdk/src/features/jobs/basiq.jobs';
-import { BasiqUsers } from '../sdk/src/features/users/basiq.users';
+import { FiskilAccounts } from '../sdk/src/features/accounts/fiskil.accounts';
+import { FiskilBalances } from '../sdk/src/features/balances/fiskil.balances';
+import { FiskilAuthentication } from '../sdk/src/features/authentication/fiskil.authentication';
+import { FiskilUsers } from '../sdk/src/features/users/fiskil.users';
+import { FiskilTransactions } from '../sdk/src/features/transactions/fiskil.transactions';
 import { OpenBankSDK } from '../sdk/src/sdk';
 
 /**
@@ -21,26 +21,25 @@ import { OpenBankSDK } from '../sdk/src/sdk';
     imports: [HttpModule],
     providers: [
         OpenBankSDK,
-        // SDK Feature services (injectable)
         AirwallexAccounts,
         AirwallexAuthentication,
         AirwallexBalances,
-        BasiqAccounts,
-        BasiqAuthentication,
-        BasiqBalances,
-        BasiqJobs,
-        BasiqUsers,
+        FiskilAccounts,
+        FiskilBalances,
+        FiskilAuthentication,
+        FiskilUsers,
+        FiskilTransactions,
     ],
     exports: [
         OpenBankSDK,
         AirwallexAccounts,
         AirwallexAuthentication,
         AirwallexBalances,
-        BasiqAccounts,
-        BasiqAuthentication,
-        BasiqBalances,
-        BasiqJobs,
-        BasiqUsers,
+        FiskilAccounts,
+        FiskilBalances,
+        FiskilAuthentication,
+        FiskilUsers,
+        FiskilTransactions,
     ],
 })
 export class SdkModule { }

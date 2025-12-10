@@ -1,8 +1,23 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum ProviderTypeDto {
     AIRWALLEX = 'airwallex',
-    BASIQ = 'basiq',
+    FISKIL = 'fiskil',
+}
+
+export class UserDetailsDto {
+    @IsOptional()
+    @IsString()
+    email?: string;
+
+    @IsOptional()
+    @IsString()
+    name?: string;
+
+    @IsOptional()
+    @IsString()
+    phone?: string;
 }
 
 export class GetAccountDto {
@@ -21,6 +36,34 @@ export class GetBalancesDto {
     companyId: string;
 }
 
+export class GetTransactionsDto {
+    @IsEnum(ProviderTypeDto)
+    provider: ProviderTypeDto;
+
+    @IsString()
+    companyId: string;
+
+    @IsOptional()
+    @IsString()
+    userId?: string;
+
+    @IsOptional()
+    @IsString()
+    accountId?: string;
+
+    @IsOptional()
+    @IsString()
+    from?: string;
+
+    @IsOptional()
+    @IsString()
+    to?: string;
+
+    @IsOptional()
+    @IsString()
+    status?: 'PENDING' | 'POSTED';
+}
+
 export class AuthenticateDto {
     @IsEnum(ProviderTypeDto)
     provider: ProviderTypeDto;
@@ -35,24 +78,11 @@ export class AuthenticateDto {
     @IsOptional()
     @IsString()
     oauthCode?: string;
-}
-
-export class CreateBasiqUserDto {
-    @IsOptional()
-    @IsString()
-    email?: string;
 
     @IsOptional()
-    @IsString()
-    mobile?: string;
-
-    @IsOptional()
-    @IsString()
-    firstName?: string;
-
-    @IsOptional()
-    @IsString()
-    lastName?: string;
+    @ValidateNested()
+    @Type(() => UserDetailsDto)
+    userDetails?: UserDetailsDto;
 }
 
 export class OAuthRedirectDto {

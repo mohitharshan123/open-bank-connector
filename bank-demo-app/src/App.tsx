@@ -45,7 +45,7 @@ const HomePage = () => {
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <header className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Banking Demo App</h1>
-          <p className="text-gray-600">Connect to banking providers (Airwallex & Basiq supported)</p>
+          <p className="text-gray-600">Connect to banking providers (Airwallex & Fiskil supported)</p>
         </header>
 
         <div className="mb-6">
@@ -73,9 +73,9 @@ const HomePage = () => {
                 <ConnectButton provider="airwallex" companyId={selectedCompany} />
               </div>
               <div className="border rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-2">Basiq</h3>
-                <p className="text-sm text-gray-600 mb-4">Connect your Basiq account</p>
-                <ConnectButton provider="basiq" companyId={selectedCompany} />
+                <h3 className="text-lg font-semibold mb-2">Fiskil</h3>
+                <p className="text-sm text-gray-600 mb-4">Connect your Fiskil account</p>
+                <ConnectButton provider="fiskil" companyId={selectedCompany} />
               </div>
             </div>
           </div>

@@ -7,11 +7,23 @@ import { TokenAuthGuard } from './guards/token-auth.guard';
 export interface GetAccountCommand {
     provider: ProviderType | string;
     companyId: string;
+    userId?: string;
 }
 
 export interface GetBalancesCommand {
     provider: ProviderType | string;
     companyId: string;
+    userId?: string;
+}
+
+export interface GetTransactionsCommand {
+    provider: ProviderType | string;
+    companyId: string;
+    userId?: string;
+    accountId?: string;
+    from?: string;
+    to?: string;
+    status?: 'PENDING' | 'POSTED';
 }
 
 export interface AuthenticateCommand {
@@ -19,13 +31,9 @@ export interface AuthenticateCommand {
     companyId: string;
     userId?: string;
     oauthCode?: string;
-}
-
-export interface CreateBasiqUserCommand {
     email?: string;
-    mobile?: string;
-    firstName?: string;
-    lastName?: string;
+    name?: string;
+    phone?: string;
 }
 
 export interface OAuthRedirectCommand {
@@ -45,6 +53,13 @@ export interface GetJobsCommand {
 export interface ConnectionStatusCommand {
     provider: ProviderType | string;
     companyId: string;
+}
+
+export interface CreateFiskilUserCommand {
+    companyId: string;
+    email?: string;
+    name?: string;
+    phone?: string;
 }
 
 @Controller()
@@ -68,10 +83,11 @@ export class BankController {
         this.logger.debug('Received getAccount command', {
             provider: data.provider,
             companyId: data.companyId,
+            userId: data.userId,
         });
         const provider = this.validateProvider(data.provider);
-        this.logger.debug('Getting account for provider', { provider, companyId: data.companyId });
-        return this.bankService.getAccount(provider, data.companyId);
+        this.logger.debug('Getting account for provider', { provider, companyId: data.companyId, userId: data.userId });
+        return this.bankService.getAccount(provider, data.companyId, data.userId);
     }
 
     @MessagePattern('bank.getBalances')
@@ -80,28 +96,54 @@ export class BankController {
         this.logger.debug('Received getBalances command', {
             provider: data.provider,
             companyId: data.companyId,
+            userId: data.userId,
         });
         const provider = this.validateProvider(data.provider);
-        return this.bankService.getBalances(provider, data.companyId);
+        return this.bankService.getBalances(provider, data.companyId, data.userId);
     }
 
-    @MessagePattern('bank.getJobs')
+    @MessagePattern('bank.getTransactions')
     @UseGuards(TokenAuthGuard)
-    async getJobs(@Payload() data: GetJobsCommand) {
-        this.logger.debug('Received getJobs command', {
+    async getTransactions(@Payload() data: GetTransactionsCommand) {
+        this.logger.debug('Received getTransactions command', {
             provider: data.provider,
             companyId: data.companyId,
-            jobId: data.jobId,
+            userId: data.userId,
+            accountId: data.accountId,
         });
         const provider = this.validateProvider(data.provider);
-        return this.bankService.getJobs(provider, data.companyId, data.jobId);
+        return this.bankService.getTransactions(
+            provider,
+            data.companyId,
+            data.userId,
+            data.accountId,
+            data.from,
+            data.to,
+            data.status,
+        );
     }
 
     @MessagePattern('bank.authenticate')
     async authenticate(@Payload() data: AuthenticateCommand) {
-        this.logger.debug('Received authenticate command', { provider: data.provider, companyId: data.companyId, userId: data.userId, hasOAuthCode: !!data.oauthCode });
+        this.logger.debug('Received authenticate command', {
+            provider: data.provider,
+            companyId: data.companyId,
+            userId: data.userId,
+            hasOAuthCode: !!data.oauthCode,
+            hasUserData: !!(data.email || data.name || data.phone),
+        });
         const provider = this.validateProvider(data.provider);
-        return this.bankService.authenticate(provider, data.companyId, data.userId, data.oauthCode);
+        return this.bankService.authenticate(
+            provider,
+            data.companyId,
+            data.userId,
+            data.oauthCode,
+            data.email || data.name || data.phone ? {
+                email: data.email,
+                name: data.name,
+                phone: data.phone,
+            } : undefined,
+        );
     }
 
     @MessagePattern('bank.oauthRedirect')
@@ -125,6 +167,16 @@ export class BankController {
         const provider = this.validateProvider(data.provider);
         const isConnected = await this.bankService.isConnected(provider, data.companyId);
         return { isConnected, provider, companyId: data.companyId };
+    }
+
+    @MessagePattern('bank.createFiskilUser')
+    async createFiskilUser(@Payload() data: CreateFiskilUserCommand) {
+        this.logger.debug('Received createFiskilUser command', data);
+        return this.bankService.createFiskilUser(data.companyId, {
+            email: data.email,
+            name: data.name,
+            phone: data.phone,
+        });
     }
 }
 

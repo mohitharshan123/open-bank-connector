@@ -3,7 +3,6 @@
  */
 
 export interface ProviderConfig {
-    apiKey: string;
     baseUrl?: string;
     timeout?: number;
 }
@@ -25,19 +24,30 @@ export interface StandardBalance {
     provider: string;
 }
 
-export interface StandardJob {
+export interface StandardTransaction {
     id: string;
-    type: string;
-    status: string;
-    created: string;
-    updated: string;
-    steps?: Array<{
-        title: string;
-        status: string;
-        result?: any;
-    }>;
+    accountId: string;
+    amount: number;
+    currency: string;
+    description: string;
+    date: string;
+    type: TransactionType;
+    category?: string;
+    subCategory?: string;
+    status?: TransactionStatus;
+    reference?: string;
     provider: string;
 }
 
-export type ProviderName = 'airwallex' | 'basiq';
+export type ProviderName = 'airwallex' | 'fiskil';
+
+export enum TransactionType {
+    DEBIT = 'debit',
+    CREDIT = 'credit',
+}
+export enum TransactionStatus {
+    PENDING = 'pending',
+    POSTED = 'posted',
+    FAILED = 'failed',
+}
 

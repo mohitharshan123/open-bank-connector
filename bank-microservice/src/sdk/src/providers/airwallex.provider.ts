@@ -4,7 +4,7 @@ import { AirwallexAuthentication } from '../features/authentication/airwallex.au
 import { AirwallexBalances } from '../features/balances/airwallex.balances';
 import type { IHttpClient } from '../shared/interfaces/https-client.interface';
 import type { AirwallexAuthResponse, AirwallexConfig } from '../shared/types/airwallex';
-import { StandardAccount, StandardBalance, StandardJob } from '../shared/types/common';
+import { StandardAccount, StandardBalance } from '../shared/types/common';
 import { BaseProvider } from './base.provider';
 
 @Injectable()
@@ -64,13 +64,5 @@ export class AirwallexProvider extends BaseProvider {
             throw new Error('AirwallexBalances service not injected');
         }
         return this.airwallexBalances.getBalances(this.httpClient, this.config);
-    }
-
-    /**
-     * Get jobs - Airwallex doesn't have jobs, returns empty array
-     */
-    async getJobs(userId?: string, jobId?: string): Promise<StandardJob[]> {
-        this.logger.debug(`[AirwallexProvider] getJobs called - Airwallex doesn't support jobs, returning empty array`);
-        return [];
     }
 }

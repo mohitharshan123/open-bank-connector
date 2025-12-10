@@ -3,7 +3,7 @@
  */
 export enum ProviderType {
     AIRWALLEX = 'airwallex',
-    BASIQ = 'basiq',
+    FISKIL = 'fiskil',
 }
 
 /**

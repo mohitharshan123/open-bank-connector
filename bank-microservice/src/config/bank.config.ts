@@ -11,10 +11,13 @@ export interface BankConfig {
         oauthRedirectUri?: string;
         oauthScope?: string;
     };
-    basiq: {
-        apiKey: string;
+    fiskil: {
+        clientId: string;
+        clientSecret: string;
         baseUrl?: string;
-    };
+        oauthRedirectUri?: string;
+        oauthScope?: string;
+    }
 }
 
 export default registerAs('bank', (): BankConfig => ({
@@ -28,9 +31,11 @@ export default registerAs('bank', (): BankConfig => ({
         oauthRedirectUri: process.env.AIRWALLEX_OAUTH_REDIRECT_URI || 'http://localhost:5173/oauth/callback',
         oauthScope: process.env.AIRWALLEX_OAUTH_SCOPE || 'r:awx_action:balances_view r:awx_action:settings.account_details_view',
     },
-    basiq: {
-        apiKey: process.env.BASIQ_API_KEY || '',
-        baseUrl: process.env.BASIQ_BASE_URL,
+    fiskil: {
+        clientId: process.env.FISKIL_CLIENT_ID || '',
+        clientSecret: process.env.FISKIL_CLIENT_SECRET || '',
+        baseUrl: process.env.FISKIL_BASE_URL,
+        oauthRedirectUri: process.env.FISKIL_OAUTH_REDIRECT_URI ,
     },
 }));
 

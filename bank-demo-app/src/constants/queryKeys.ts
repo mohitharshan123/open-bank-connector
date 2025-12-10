@@ -3,4 +3,5 @@ export const QUERY_KEYS = {
     balances: 'balances',
     authenticate: 'authenticate',
     connectionStatus: 'connectionStatus',
+    transactions: 'transactions',
 } as const;

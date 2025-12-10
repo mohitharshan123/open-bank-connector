@@ -64,14 +64,13 @@ export class TokenInjectingHttpClient implements IHttpClient {
                 },
             ],
             [
-                ProviderType.BASIQ,
+                ProviderType.FISKIL,
                 {
                     supportsRefresh: true,
                     expirationBufferMs: 5 * 60 * 1000,
                     injectHeader: (config, token) => {
                         config.headers = config.headers || {};
                         config.headers['Authorization'] = `Bearer ${token}`;
-                        config.headers['basiq-version'] = '3.0';
                     },
                 },
             ],

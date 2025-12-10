@@ -8,14 +8,12 @@ import {
     OpenBankSDK,
     StandardAccount,
     StandardBalance,
-    StandardJob,
+    StandardTransaction,
 } from '../sdk';
 import { TokenService } from '../services/token.service';
 import { ProviderType } from '../types/provider.enum';
 import { BaseStrategy } from './base.strategy';
-import { AirwallexAccounts } from './features/accounts/airwallex.accounts';
 import { AirwallexAuthentication } from './features/authentication/airwallex.authentication';
-import { AirwallexBalances } from './features/balances/airwallex.balances';
 import { AirwallexOAuth } from './features/oauth/airwallex.oauth';
 import { IProviderStrategy } from './provider-strategy.interface';
 
@@ -27,8 +25,6 @@ export class AirwallexStrategy extends BaseStrategy implements IProviderStrategy
         httpService: HttpService,
         sdk: OpenBankSDK,
         private readonly airwallexAuthentication: AirwallexAuthentication,
-        private readonly airwallexAccounts: AirwallexAccounts,
-        private readonly airwallexBalances: AirwallexBalances,
         private readonly airwallexOAuth: AirwallexOAuth,
     ) {
         super(configService, tokenService, httpService, sdk, AirwallexStrategy.name);
@@ -66,7 +62,12 @@ export class AirwallexStrategy extends BaseStrategy implements IProviderStrategy
         this.logger.log(`✓ Airwallex provider initialized successfully for company: ${companyId}`);
     }
 
-    async authenticate(companyId: string, userId?: string, oauthCode?: string): Promise<AirwallexAuthResponse> {
+    async authenticate(
+        companyId: string,
+        userId?: string,
+        oauthCode?: string,
+        userData?: { email?: string; name?: string; phone?: string },
+    ): Promise<AirwallexAuthResponse> {
         await this.initialize(companyId);
         const providerInstance = await this.getProvider(companyId);
         const authHttpClient = this.createAuthHttpClient();
@@ -79,24 +80,30 @@ export class AirwallexStrategy extends BaseStrategy implements IProviderStrategy
         return this.airwallexAuthentication.authenticate(providerInstance, this.airwallexOAuth, companyId, userId, oauthCode);
     }
 
-    async getAccount(companyId: string): Promise<StandardAccount[]> {
+    async getAccounts(companyId: string, userId?: string): Promise<StandardAccount[]> {
         await this.initialize(companyId);
         const providerInstance = await this.getProvider(companyId);
-        return this.airwallexAccounts.getAccounts(providerInstance);
+        return providerInstance.getAccount();
     }
 
-    async getBalances(companyId: string): Promise<StandardBalance[]> {
+    async getBalances(companyId: string, userId?: string): Promise<StandardBalance[]> {
         await this.initialize(companyId);
         const providerInstance = await this.getProvider(companyId);
-        return this.airwallexBalances.getBalances(providerInstance);
+        return providerInstance.getBalances();
     }
 
-    /**
-     * Get jobs - Airwallex doesn't have jobs, returns empty array
-     */
-    async getJobs(companyId: string, jobId?: string): Promise<StandardJob[]> {
-        this.logger.debug(`getJobs called for Airwallex - returning empty array`);
-        return [];
+    async getTransactions(
+        companyId: string,
+        userId?: string,
+        accountId?: string,
+        from?: string,
+        to?: string,
+        status?: string,
+    ): Promise<{ transactions: StandardTransaction[]; links?: { next?: string; prev?: string } }> {
+        // Airwallex doesn't support transactions in the current implementation
+        // Return empty array with no links
+        this.logger.warn(`[AirwallexStrategy] Transactions not supported for Airwallex provider`);
+        return { transactions: [] };
     }
 
     async getOAuthRedirectUrl(

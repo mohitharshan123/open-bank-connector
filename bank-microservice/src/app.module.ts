@@ -14,16 +14,12 @@ import { TokenRepository } from './repositories/token.repository.interface';
 import { Token, TokenSchema } from './schemas/token.schema';
 import { TokenService } from './services/token.service';
 import { AirwallexStrategy } from './strategies/airwallex.strategy';
-import { BasiqStrategy } from './strategies/basiq.strategy';
-import { AirwallexAccounts } from './strategies/features/accounts/airwallex.accounts';
-import { BasiqAccounts } from './strategies/features/accounts/basiq.accounts';
+import { FiskilStrategy } from './strategies/fiskil.strategy';
 import { AirwallexAuthentication } from './strategies/features/authentication/airwallex.authentication';
-import { BasiqAuthentication } from './strategies/features/authentication/basiq.authentication';
-import { AirwallexBalances } from './strategies/features/balances/airwallex.balances';
-import { BasiqBalances } from './strategies/features/balances/basiq.balances';
-import { BasiqJobs } from './strategies/features/jobs/basiq.jobs';
 import { AirwallexOAuth } from './strategies/features/oauth/airwallex.oauth';
-import { BasiqOAuth } from './strategies/features/oauth/basiq.oauth';
+import { FiskilAuthentication } from './strategies/features/authentication/fiskil.authentication';
+import { FiskilOAuth } from './strategies/features/oauth/fiskil.oauth';
+import { FiskilUsers } from './strategies/features/users/fiskil.users';
 import { ProviderStrategyFactory } from './strategies/provider-strategy.factory';
 
 @Module({
@@ -55,17 +51,13 @@ import { ProviderStrategyFactory } from './strategies/provider-strategy.factory'
       provide: TokenRepository,
       useClass: MongoTokenRepository,
     },
-    BasiqAuthentication,
-    BasiqAccounts,
-    BasiqBalances,
-    BasiqJobs,
-    BasiqOAuth,
     AirwallexAuthentication,
-    AirwallexAccounts,
-    AirwallexBalances,
     AirwallexOAuth,
-    BasiqStrategy,
     AirwallexStrategy,
+    FiskilAuthentication,
+    FiskilOAuth,
+    FiskilUsers,
+    FiskilStrategy,
     ProviderStrategyFactory,
   ],
 })

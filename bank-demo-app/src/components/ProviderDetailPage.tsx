@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { ProviderType } from '../api/bankApi';
 import { useAccount, useBalances, useConnectionStatus } from '../hooks/useBankQueries';
 import { AccountDetails } from './AccountDetails';
+import { TransactionsList } from './TransactionsList';
 
 export const ProviderDetailPage = () => {
     const { provider, companyId } = useParams<{ provider: ProviderType; companyId: string }>();
@@ -27,7 +28,7 @@ export const ProviderDetailPage = () => {
 
                 <header className="mb-8">
                     <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                        {provider === 'airwallex' ? 'Airwallex' : 'Basiq'} Details
+                        {provider === 'airwallex' ? 'Airwallex' : 'Fiskil'} Details
                     </h1>
                     <p className="text-gray-600">Company: {companyId}</p>
                     {statusLoading ? (
@@ -88,6 +89,11 @@ export const ProviderDetailPage = () => {
                                 </div>
 
                                 <AccountDetails provider={provider} companyId={companyId} />
+
+                                <TransactionsList
+                                    provider={provider}
+                                    companyId={companyId}
+                                />
                             </>
                         )}
                     </div>

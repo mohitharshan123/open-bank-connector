@@ -11,6 +11,7 @@ import {
     AuthenticateDto,
     GetAccountDto,
     GetBalancesDto,
+    GetTransactionsDto,
     OAuthRedirectDto,
 } from '../dto/bank.dto';
 import { BankClientService } from '../services/bank-client.service';
@@ -31,6 +32,7 @@ export class BankController {
                 companyId: dto.companyId,
                 userId: dto.userId,
                 oauthCode: dto.oauthCode,
+                userDetails: dto.userDetails,
             });
         } catch (error: any) {
             this.logger.error(`Authentication failed: ${error.message}`, error.stack);
@@ -90,6 +92,28 @@ export class BankController {
             this.logger.error(`Get balances failed: ${error.message}`, error.stack);
             throw new BadRequestException(
                 error.message || 'Failed to get balances',
+            );
+        }
+    }
+
+    @Post('transactions')
+    @HttpCode(HttpStatus.OK)
+    async getTransactions(@Body() dto: GetTransactionsDto) {
+        try {
+            this.logger.log(`Get transactions request for provider: ${dto.provider}, company: ${dto.companyId}`);
+            return await this.bankClient.getTransactions({
+                provider: dto.provider as any,
+                companyId: dto.companyId,
+                userId: dto.userId,
+                accountId: dto.accountId,
+                from: dto.from,
+                to: dto.to,
+                status: dto.status,
+            });
+        } catch (error: any) {
+            this.logger.error(`Get transactions failed: ${error.message}`, error.stack);
+            throw new BadRequestException(
+                error.message || 'Failed to get transactions',
             );
         }
     }

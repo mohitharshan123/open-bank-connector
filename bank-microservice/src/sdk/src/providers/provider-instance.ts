@@ -1,10 +1,10 @@
 import { Logger } from '@nestjs/common';
-import { IProvider } from './base.provider';
 import {
     StandardAccount,
     StandardBalance,
-    StandardJob,
+    StandardTransaction,
 } from '../shared/types/common';
+import { IProvider } from './base.provider';
 
 /**
  * Provider-specific instance wrapper that exposes methods without requiring provider name
@@ -42,10 +42,19 @@ export class ProviderInstance {
     }
 
     /**
-     * Get jobs (Basiq-specific, returns empty array for other providers)
+     * Get transactions (optional, only supported by some providers like Fiskil)
      */
-    async getJobs(userId?: string, jobId?: string): Promise<StandardJob[]> {
-        return this.provider.getJobs(userId, jobId);
+    async getTransactions(
+        userId?: string,
+        accountId?: string,
+        from?: string,
+        to?: string,
+        status?: 'PENDING' | 'POSTED',
+    ): Promise<{ transactions: StandardTransaction[]; links?: { next?: string; prev?: string } }> {
+        if ('getTransactions' in this.provider && typeof this.provider.getTransactions === 'function') {
+            return (this.provider as any).getTransactions(userId, accountId, from, to, status);
+        }
+        throw new Error(`Transactions not supported for provider: ${this.provider.getProviderName()}`);
     }
 
     /**

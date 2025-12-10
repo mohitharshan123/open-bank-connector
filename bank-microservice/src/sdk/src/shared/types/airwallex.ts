@@ -58,3 +58,13 @@ export interface AirwallexBalance {
     [key: string]: unknown;
 }
 
+export interface AirwallexTransaction {
+    id: string;
+    account_id: string;
+    amount: number;
+    currency: string;
+    description: string;
+    created_at: string;
+    type: "debit" | "credit";
+    [key: string]: unknown;
+}

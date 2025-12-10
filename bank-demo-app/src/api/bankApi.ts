@@ -2,13 +2,20 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/bank';
 
-export type ProviderType = 'airwallex' | 'basiq';
+export type ProviderType = 'airwallex' | 'fiskil';
+
+export interface UserDetails {
+    email?: string;
+    name?: string;
+    phone?: string;
+}
 
 export interface AuthenticateRequest {
     provider: ProviderType;
     companyId: string;
     userId?: string;
     oauthCode?: string;
+    userDetails?: UserDetails;
 }
 
 export interface AuthenticateResponse {
@@ -30,18 +37,21 @@ export interface GetBalancesRequest {
     companyId: string;
 }
 
-export interface CreateBasiqUserRequest {
-    email?: string;
-    mobile?: string;
-    firstName?: string;
-    lastName?: string;
-}
 
 export interface OAuthRedirectRequest {
     provider: ProviderType;
     companyId: string;
     userId?: string;
     action?: string;
+    state?: string;
+}
+
+export interface OAuthRedirectResponse {
+    redirectUrl: string;
+    sessionId?: string;
+    authUrl?: string;
+    expiresAt?: string;
+    userId?: string;
     state?: string;
 }
 
@@ -73,6 +83,39 @@ export interface StandardBalance {
     provider: string;
 }
 
+export interface StandardTransaction {
+    id: string;
+    accountId: string;
+    amount: number;
+    currency: string;
+    description: string;
+    date: string;
+    type: 'debit' | 'credit';
+    category?: string;
+    subCategory?: string;
+    status?: string;
+    reference?: string;
+    provider: string;
+}
+
+export interface GetTransactionsRequest {
+    provider: ProviderType;
+    companyId: string;
+    userId?: string;
+    accountId?: string;
+    from?: string;
+    to?: string;
+    status?: 'PENDING' | 'POSTED';
+}
+
+export interface GetTransactionsResponse {
+    transactions: StandardTransaction[];
+    links?: {
+        next?: string;
+        prev?: string;
+    };
+}
+
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
     headers: {
@@ -85,8 +128,8 @@ export const bankApi = {
         const response = await apiClient.post<AuthenticateResponse>('/authenticate', request);
         return response.data;
     },
-    getOAuthRedirect: async (request: OAuthRedirectRequest): Promise<{ redirectUrl: string }> => {
-        const response = await apiClient.post<{ redirectUrl: string }>('/oauth/redirect', request);
+    getOAuthRedirect: async (request: OAuthRedirectRequest): Promise<OAuthRedirectResponse> => {
+        const response = await apiClient.post<OAuthRedirectResponse>('/oauth/redirect', request);
         return response.data;
     },
     getAccount: async (request: GetAccountRequest): Promise<StandardAccount[]> => {
@@ -99,6 +142,10 @@ export const bankApi = {
     },
     getConnectionStatus: async (request: ConnectionStatusRequest): Promise<ConnectionStatusResponse> => {
         const response = await apiClient.post<ConnectionStatusResponse>('/connection-status', request);
+        return response.data;
+    },
+    getTransactions: async (request: GetTransactionsRequest): Promise<GetTransactionsResponse> => {
+        const response = await apiClient.post<GetTransactionsResponse>('/transactions', request);
         return response.data;
     },
 };

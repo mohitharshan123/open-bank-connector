@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { HttpRequestConfig } from '../interfaces/https-client.interface';
 
-/**
- * Builder pattern for constructing HTTP request configurations
- * Provides a fluent API for building requests with consistent defaults
- */
 @Injectable()
 export class HttpRequestBuilder {
     private config: HttpRequestConfig = {

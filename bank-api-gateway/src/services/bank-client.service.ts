@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 
 export enum ProviderType {
     AIRWALLEX = 'airwallex',
-    BASIQ = 'basiq',
+    FISKIL = 'fiskil',
 }
 
 export interface GetAccountRequest {
@@ -17,19 +17,30 @@ export interface GetBalancesRequest {
     companyId: string;
 }
 
+export interface GetTransactionsRequest {
+    provider: ProviderType;
+    companyId: string;
+    userId?: string;
+    accountId?: string;
+    from?: string;
+    to?: string;
+    status?: 'PENDING' | 'POSTED';
+}
+
+export interface UserDetails {
+    email?: string;
+    name?: string;
+    phone?: string;
+}
+
 export interface AuthenticateRequest {
     provider: ProviderType;
     companyId: string;
     userId?: string;
     oauthCode?: string;
+    userDetails?: UserDetails;
 }
 
-export interface CreateBasiqUserRequest {
-    email?: string;
-    mobile?: string;
-    firstName?: string;
-    lastName?: string;
-}
 
 export interface OAuthRedirectRequest {
     provider: ProviderType;
@@ -111,6 +122,22 @@ export class BankClientService implements OnModuleInit, OnModuleDestroy {
         );
     }
 
+    async getTransactions(request: GetTransactionsRequest) {
+        await this.ensureConnected();
+        this.logger.debug(`Calling microservice: bank.getTransactions`, request);
+        return firstValueFrom(
+            this.client.send('bank.getTransactions', {
+                provider: request.provider,
+                companyId: request.companyId,
+                userId: request.userId,
+                accountId: request.accountId,
+                from: request.from,
+                to: request.to,
+                status: request.status,
+            }),
+        );
+    }
+
     async authenticate(request: AuthenticateRequest) {
         await this.ensureConnected();
         this.logger.debug(`Calling microservice: bank.authenticate`, request);
@@ -120,15 +147,10 @@ export class BankClientService implements OnModuleInit, OnModuleDestroy {
                 companyId: request.companyId,
                 userId: request.userId,
                 oauthCode: request.oauthCode,
+                email: request.userDetails?.email,
+                name: request.userDetails?.name,
+                phone: request.userDetails?.phone,
             }),
-        );
-    }
-
-    async createBasiqUser(request: CreateBasiqUserRequest) {
-        await this.ensureConnected();
-        this.logger.debug(`Calling microservice: bank.createBasiqUser`, request);
-        return firstValueFrom(
-            this.client.send('bank.createBasiqUser', request),
         );
     }
 

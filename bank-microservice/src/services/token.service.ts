@@ -6,15 +6,13 @@ import { REDIS_CLIENT } from '../modules/redis.module';
 import type { ITokenRepository } from '../repositories/token.repository.interface';
 import { TokenRepository } from '../repositories/token.repository.interface';
 import type { TokenDocument } from '../schemas/token.schema';
-import { isBasiqToken } from '../schemas/token.schema';
-import { AirwallexAuthResponse } from '../sdk';
+import { AirwallexAuthResponse, FiskilAuthResponse } from '../sdk';
 import { ProviderType } from '../types/provider.enum';
 
 interface TokenData {
     token: string;
     refreshToken?: string;
     expiresAt: number;
-    userId?: string;
 }
 
 @Injectable()
@@ -83,14 +81,6 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         const cachedToken = await this.getTokenFromRedis(redisKey);
 
         if (cachedToken) {
-            if (provider === ProviderType.BASIQ && !cachedToken.userId) {
-                const mongoToken = await this.tokenRepository.findActiveByProvider(provider, companyId);
-                if (mongoToken && isBasiqToken(mongoToken)) {
-                    cachedToken.userId = mongoToken.userId;
-                    await this.setTokenInRedis(redisKey, cachedToken, Math.floor((cachedToken.expiresAt - Date.now()) / 1000));
-                }
-            }
-
             const tokenDoc = await this.tokenRepository.findActiveByProvider(provider, companyId);
             if (tokenDoc) {
                 return tokenDoc;
@@ -148,7 +138,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
 
             this.logger.debug(`Calling refresh callback for ${provider} (company: ${companyId})...`);
 
-            let authResponse: AirwallexAuthResponse;
+            let authResponse: AirwallexAuthResponse | FiskilAuthResponse;
             try {
                 authResponse = await refreshCallback();
             } catch (callbackError) {
@@ -176,13 +166,9 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
 
             const redisKey = this.getRedisKey(provider, companyId);
 
-            const existingToken = await this.tokenRepository.findActiveByProvider(provider, companyId);
-            const userId = existingToken && isBasiqToken(existingToken) ? existingToken.userId : undefined;
-
             const tokenData: TokenData = {
                 token,
                 expiresAt: expiresAtMs,
-                userId,
             };
 
             await this.setTokenInRedis(redisKey, tokenData, expiresIn + 60);
@@ -191,7 +177,6 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
                 provider,
                 companyId,
                 token,
-                userId,
                 expiresAt,
                 isActive: true,
                 metadata: this.getProviderMetadata(provider, authResponse),
@@ -227,6 +212,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         token: string,
         expiresIn: number,
         userId?: string,
+        additionalMetadata?: Record<string, any>,
     ): Promise<TokenDocument> {
         await this.deactivateTokens(provider, companyId);
 
@@ -237,18 +223,23 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
         const tokenData: TokenData = {
             token,
             expiresAt: expiresAtMs,
-            userId,
         };
         await this.setTokenInRedis(redisKey, tokenData, expiresIn + 60);
+
+        const baseMetadata = this.getProviderMetadataForManualStorage(provider) || {};
+        const metadata = {
+            ...baseMetadata,
+            ...(additionalMetadata || {}),
+            ...(userId && provider === ProviderType.FISKIL ? { end_user_id: userId } : {}),
+        };
 
         return this.tokenRepository.create({
             provider,
             companyId,
             token,
-            userId,
             expiresAt,
             isActive: true,
-            metadata: this.getProviderMetadataForManualStorage(provider),
+            metadata,
         });
     }
 
@@ -294,7 +285,7 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
 
     private getProviderMetadata(
         provider: ProviderType,
-        authResponse: AirwallexAuthResponse,
+        authResponse: AirwallexAuthResponse | FiskilAuthResponse,
     ): Record<string, any> | undefined {
         switch (provider) {
             case ProviderType.AIRWALLEX:
@@ -306,6 +297,16 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
                 return {
                     clientId: airwallexConfig?.clientId,
                     apiKey: airwallexConfig?.apiKey,
+                    scope: (authResponse as any).scope,
+                };
+            case ProviderType.FISKIL:
+                const fiskilConfig = this.configService.get<{
+                    clientId: string;
+                    clientSecret: string;
+                }>('bank.fiskil');
+
+                return {
+                    clientId: fiskilConfig?.clientId,
                     scope: (authResponse as any).scope,
                 };
             default:
@@ -327,8 +328,33 @@ export class TokenService implements OnModuleInit, OnModuleDestroy {
                     clientId: airwallexConfig?.clientId,
                     apiKey: airwallexConfig?.apiKey,
                 };
+            case ProviderType.FISKIL:
+                const fiskilConfig = this.configService.get<{
+                    clientId: string;
+                    clientSecret: string;
+                }>('bank.fiskil');
+
+                return {
+                    clientId: fiskilConfig?.clientId,
+                };
             default:
                 return undefined;
+        }
+    }
+
+    /**
+     * Update token metadata (e.g., to store end_user_id)
+     */
+    async updateTokenMetadata(
+        provider: ProviderType,
+        companyId: string,
+        metadata: Record<string, any>,
+    ): Promise<void> {
+        const updated = await this.tokenRepository.updateMetadata(provider, companyId, metadata);
+        if (updated) {
+            this.logger.debug(`Updated token metadata for ${provider} (company: ${companyId})`);
+        } else {
+            this.logger.warn(`No active token found to update metadata for ${provider} (company: ${companyId})`);
         }
     }
 }

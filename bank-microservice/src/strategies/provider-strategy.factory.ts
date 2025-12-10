@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AuthenticationNotSupportedException } from '../exceptions/provider.exception';
 import { ProviderType } from '../types/provider.enum';
 import { AirwallexStrategy } from './airwallex.strategy';
-import { BasiqStrategy } from './basiq.strategy';
+import { FiskilStrategy } from './fiskil.strategy';
 import { IProviderStrategy } from './provider-strategy.interface';
 
 /**
@@ -14,11 +14,11 @@ export class ProviderStrategyFactory {
     private readonly strategies = new Map<ProviderType, IProviderStrategy>();
 
     constructor(
-        private readonly basiqStrategy: BasiqStrategy,
         private readonly airwallexStrategy: AirwallexStrategy,
+        private readonly fiskilStrategy: FiskilStrategy,
     ) {
-        this.strategies.set(ProviderType.BASIQ, this.basiqStrategy);
         this.strategies.set(ProviderType.AIRWALLEX, this.airwallexStrategy);
+        this.strategies.set(ProviderType.FISKIL, this.fiskilStrategy);
     }
 
     getStrategy(provider: ProviderType): IProviderStrategy {

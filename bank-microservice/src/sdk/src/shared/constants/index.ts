@@ -1,2 +1,2 @@
 export * from './airwallex.constants';
-export * from './basiq.constants';
+export * from './fiskil.constants';
