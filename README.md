@@ -1097,9 +1097,10 @@ All operations are scoped by `companyId`:
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Detailed architecture documentation
 
 
-https://github.com/user-attachments/assets/b3db140c-74d4-4d47-a229-2541ba98bb3d
+
+https://github.com/user-attachments/assets/debb7bb6-3f94-448e-8e2e-d689cff816c5
 
 
-https://github.com/user-attachments/assets/6c8c784c-a4fb-4790-b59b-33cc2baf754b
+
 
 
